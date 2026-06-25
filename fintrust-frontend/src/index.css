@@ -1,0 +1,97 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+  body {
+    background-color: #071B3B;
+    background-image: radial-gradient(circle at 50% 0%, #0a254d 0%, #071B3B 60%, #030e21 100%);
+    background-attachment: fixed;
+    margin: 0;
+  }
+}
+
+@layer components {
+  /* Glassmorphism card utility */
+  .glass-card {
+    background: rgba(10, 37, 77, 0.35);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(89, 207, 255, 0.12);
+    box-shadow: 0 8px 32px 0 rgba(3, 14, 33, 0.3);
+  }
+  
+  .glass-card-hover {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  .glass-card-hover:hover {
+    background: rgba(10, 37, 77, 0.5);
+    border-color: rgba(89, 207, 255, 0.3);
+    box-shadow: 0 12px 40px 0 rgba(89, 207, 255, 0.15);
+    transform: translateY(-4px);
+  }
+
+  /* Glassmorphism input fields */
+  .glass-input {
+    background: rgba(3, 14, 33, 0.4);
+    border: 1px solid rgba(89, 207, 255, 0.15);
+    color: #ffffff;
+    transition: all 0.2s ease-in-out;
+  }
+
+  .glass-input:focus {
+    background: rgba(3, 14, 33, 0.6);
+    border-color: rgba(89, 207, 255, 0.7);
+    box-shadow: 0 0 15px rgba(89, 207, 255, 0.15);
+    outline: none;
+  }
+
+  /* Glow button standard */
+  .btn-glow-sky {
+    background: linear-gradient(135deg, #59CFFF 0%, #29b6f6 100%);
+    box-shadow: 0 4px 15px rgba(89, 207, 255, 0.25);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .btn-glow-sky:hover {
+    box-shadow: 0 4px 25px rgba(89, 207, 255, 0.5);
+    transform: scale(1.02);
+  }
+
+  /* Glow text sky */
+  .text-glow-sky {
+    text-shadow: 0 0 12px rgba(89, 207, 255, 0.4);
+  }
+
+  /* Hide default scrollbar but keep functionality */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* Custom styled scrollbars for premium feel */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #030e21;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #143c75;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #59CFFF;
+}
