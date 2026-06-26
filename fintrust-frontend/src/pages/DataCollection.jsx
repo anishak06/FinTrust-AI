@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ClipboardList, DollarSign, CreditCard, Sparkles, HelpCircle, Briefcase, FileText, Check, ArrowLeft } from 'lucide-react';
@@ -23,6 +23,23 @@ export default function DataCollection() {
   const [validationError, setValidationError] = useState('');
   const [isAssessing, setIsAssessing] = useState(false);
   const [assessmentStep, setAssessmentStep] = useState(0);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('fintrust_financial_data');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed.totalMonthlyExpenses !== undefined) {
+          setMonthlyExpenses(parsed.totalMonthlyExpenses.toString());
+        }
+        if (parsed.totalMonthlySavings !== undefined) {
+          setMonthlySavings(parsed.totalMonthlySavings.toString());
+        }
+      }
+    } catch (e) {
+      console.error("Failed to parse local financial data", e);
+    }
+  }, []);
 
   const steps = [
     'Parsing transaction records...',
@@ -232,33 +249,53 @@ export default function DataCollection() {
 
             {/* Expenses */}
             <div className="space-y-1.5 text-left">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-white/40 flex items-center gap-1.5">
-                <CreditCard className="h-3.5 w-3.5 text-[#59CFFF]" /> Monthly Expenses (₹)
-              </label>
+              <div className="flex justify-between items-center">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-white/40 flex items-center gap-1.5">
+                  <CreditCard className="h-3.5 w-3.5 text-[#59CFFF]" /> Monthly Expenses (₹)
+                </label>
+                <button 
+                  type="button" 
+                  onClick={() => navigate('/supporting-documents')} 
+                  className="text-[9px] text-[#59CFFF] hover:underline font-bold"
+                >
+                  Edit Details
+                </button>
+              </div>
               <input
                 type="number"
                 value={monthlyExpenses}
                 onChange={(e) => setMonthlyExpenses(e.target.value)}
                 placeholder="e.g. 20000"
-                className="w-full px-4 py-3 rounded-lg glass-input text-xs"
+                className="w-full px-4 py-3 rounded-lg glass-input text-xs bg-white/5 opacity-70 cursor-not-allowed"
                 required
                 min="0"
+                disabled
               />
             </div>
 
             {/* Savings */}
             <div className="space-y-1.5 text-left">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-white/40 flex items-center gap-1.5">
-                <ClipboardList className="h-3.5 w-3.5 text-[#59CFFF]" /> Monthly Savings (₹)
-              </label>
+              <div className="flex justify-between items-center">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-white/40 flex items-center gap-1.5">
+                  <ClipboardList className="h-3.5 w-3.5 text-[#59CFFF]" /> Monthly Savings (₹)
+                </label>
+                <button 
+                  type="button" 
+                  onClick={() => navigate('/supporting-documents')} 
+                  className="text-[9px] text-[#59CFFF] hover:underline font-bold"
+                >
+                  Edit Details
+                </button>
+              </div>
               <input
                 type="number"
                 value={monthlySavings}
                 onChange={(e) => setMonthlySavings(e.target.value)}
                 placeholder="e.g. 15000"
-                className="w-full px-4 py-3 rounded-lg glass-input text-xs"
+                className="w-full px-4 py-3 rounded-lg glass-input text-xs bg-white/5 opacity-70 cursor-not-allowed"
                 required
                 min="0"
+                disabled
               />
             </div>
 

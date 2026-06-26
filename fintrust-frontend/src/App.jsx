@@ -9,7 +9,7 @@ import Signup from './pages/Signup';
 import Dashboard from './pages/Dashboard';
 import DataCollection from './pages/DataCollection';
 import AdminDashboard from './pages/AdminDashboard';
-import SupportingDocuments from './pages/SupportingDocuments';
+import ExpensesSavings from './pages/ExpensesSavings';
 
 // Route Guards
 function PrivateRoute({ children }) {
@@ -71,7 +71,7 @@ function App() {
             path="/supporting-documents" 
             element={
               <PrivateRoute>
-                <SupportingDocuments />
+                <ExpensesSavings />
               </PrivateRoute>
             } 
           />

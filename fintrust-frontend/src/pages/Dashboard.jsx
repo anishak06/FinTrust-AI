@@ -15,7 +15,7 @@ export default function Dashboard() {
   const [latestAssessment, setLatestAssessment] = useState(null);
   const [assessmentHistory, setAssessmentHistory] = useState([]);
   const [goals, setGoals] = useState([]);
-  const [bills, setBills] = useState([]);
+  const [localFinancials, setLocalFinancials] = useState({ expenses: [], savings: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -69,13 +69,18 @@ export default function Dashboard() {
         setGoals(goalsData);
       }
 
-      // 4. Fetch uploaded bills
-      const billsRes = await fetch('http://localhost:8080/api/bills', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (billsRes.ok) {
-        const billsData = await billsRes.json();
-        setBills(billsData);
+      // 4. Load local financial data
+      try {
+        const stored = localStorage.getItem('fintrust_financial_data');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          setLocalFinancials({ 
+            expenses: parsed.monthlyExpenses || [], 
+            savings: parsed.monthlySavings || [] 
+          });
+        }
+      } catch (err) {
+        console.error("Failed to parse local financial data", err);
       }
 
     } catch (err) {
@@ -250,17 +255,6 @@ export default function Dashboard() {
     setMobileMenuOpen(false);
   };
 
-  const getStatusBadge = (status) => {
-    if (status === 'PAID_ON_TIME') return 'bg-emerald-500/10 text-[#34C759] border border-emerald-500/20';
-    if (status === 'PAID_LATE') return 'bg-amber-500/10 text-[#F4B400] border border-amber-500/20';
-    return 'bg-red-500/10 text-[#D1495B] border border-red-500/20';
-  };
-
-  const getStatusLabel = (status) => {
-    if (status === 'PAID_ON_TIME') return 'On Time';
-    if (status === 'PAID_LATE') return 'Late';
-    return 'Pending';
-  };
 
   if (loading) {
     return (
@@ -278,7 +272,7 @@ export default function Dashboard() {
     { id: 'dashboard', label: 'Dashboard', icon: Wallet, section: 'dashboard-top' },
     { id: 'credit', label: 'Credit Score', icon: History, section: 'credit-section' },
     { id: 'analytics', label: 'Financial Overview', icon: TrendingUp, section: 'analytics-section' },
-    { id: 'bills', label: 'Bills & Payments', icon: CreditCard, route: '/supporting-documents' },
+    { id: 'bills', label: 'Expenses & Savings', icon: CreditCard, route: '/supporting-documents' },
     { id: 'docs', label: 'Documents', icon: FileText, route: '/supporting-documents' },
     { id: 'insights', label: 'AI Insights', icon: Lightbulb, section: 'insights-section' }
   ];
@@ -589,20 +583,20 @@ export default function Dashboard() {
                   </button>
                 </div>
 
-                {/* Payment Consistency Card */}
+                {/* Savings Rate Card */}
                 <div className="glass-card glass-card-hover p-5 rounded-xl text-left flex flex-col justify-between">
-                  <span className="text-[9px] uppercase text-white/40 tracking-wider font-bold">Payment Consistency</span>
+                  <span className="text-[9px] uppercase text-white/40 tracking-wider font-bold">Savings Rate</span>
                   <div className="mt-3.5 space-y-1">
                     <span className="text-xl font-extrabold text-white">
-                      {bills.length > 0 
-                        ? `${Math.round((bills.filter(b => 'PAID_ON_TIME' === b.paymentStatus).length / bills.length) * 100)}%`
-                        : '100%'}
+                      {latestAssessment.monthlyIncome > 0 
+                        ? `${Math.round((latestAssessment.monthlySavings / latestAssessment.monthlyIncome) * 100)}%`
+                        : '0%'}
                     </span>
                     <p className="text-[10px] text-emerald-400 font-semibold">
-                      Excellent Inflow Cycle
+                      Of Monthly Income
                     </p>
                   </div>
-                  <span className="text-[9px] text-white/30 mt-3 block">Based on verified bill statements</span>
+                  <span className="text-[9px] text-white/30 mt-3 block">Based on self-reported financials</span>
                 </div>
 
                 {/* Financial Health Card */}
@@ -666,44 +660,60 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                {/* Recent Bill Payments */}
+                {/* Top Expenses & Savings */}
                 <div className="glass-card glass-card-hover p-6 rounded-xl text-left lg:col-span-2 flex flex-col justify-between">
                   <div className="flex justify-between items-center border-b border-white/5 pb-3 mb-4">
                     <div>
-                      <h3 className="text-xs font-bold uppercase tracking-wider text-white/80">Recent Bill Payments</h3>
-                      <p className="text-[9px] text-white/40 mt-0.5">Historical verification list</p>
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-white/80">Top Expenses & Savings</h3>
+                      <p className="text-[9px] text-white/40 mt-0.5">Highest monthly allocations</p>
                     </div>
                     <button 
                       onClick={() => navigate('/supporting-documents')}
                       className="text-[9px] font-bold text-[#59CFFF] hover:text-[#7ce0ff]"
                     >
-                      View All
+                      Manage
                     </button>
                   </div>
 
-                  {bills.length === 0 ? (
+                  {localFinancials.expenses.length === 0 && localFinancials.savings.length === 0 ? (
                     <div className="flex-1 flex flex-col items-center justify-center text-center p-6 text-white/30 space-y-1">
-                      <FileText className="h-8 w-8 opacity-25" />
-                      <p className="text-xs">No bills uploaded yet</p>
+                      <DollarSign className="h-8 w-8 opacity-25" />
+                      <p className="text-xs">No financial records added yet</p>
                     </div>
                   ) : (
                     <div className="space-y-3 flex-grow overflow-y-auto pr-1 no-scrollbar">
-                      {bills.slice(0, 4).map((bill) => (
-                        <div key={bill.id} className="flex items-center justify-between p-3.5 rounded-lg bg-white/[0.02] border border-white/5 text-xs">
+                      {/* Top 2 Expenses */}
+                      {localFinancials.expenses.sort((a, b) => b.amount - a.amount).slice(0, 2).map((item, idx) => (
+                        <div key={`exp-${idx}`} className="flex items-center justify-between p-3.5 rounded-lg bg-[#D1495B]/5 border border-[#D1495B]/10 text-xs">
                           <div className="flex items-center gap-2.5">
-                            <div className="h-8 w-8 rounded-lg bg-[#59CFFF]/10 border border-[#59CFFF]/15 flex items-center justify-center text-[#59CFFF] shrink-0">
-                              <FileText className="h-4 w-4" />
+                            <div className="h-8 w-8 rounded-lg bg-[#D1495B]/10 flex items-center justify-center text-[#D1495B] shrink-0">
+                              <DollarSign className="h-4 w-4" />
                             </div>
                             <div>
-                              <div className="font-bold text-white">{bill.billType}</div>
-                              <div className="text-[9px] text-white/40 font-mono mt-0.5">{bill.merchantName}</div>
+                              <div className="font-bold text-white">{item.title}</div>
+                              <div className="text-[9px] text-[#D1495B] font-mono mt-0.5">Expense</div>
                             </div>
                           </div>
-                          <div className="text-right space-y-1 shrink-0">
-                            <div className="font-bold text-[#F5E6D3]">₹{bill.amount.toLocaleString()}</div>
-                            <span className={`px-2 py-0.5 rounded text-[8px] font-medium leading-none inline-block ${getStatusBadge(bill.paymentStatus)}`}>
-                              {getStatusLabel(bill.paymentStatus)}
-                            </span>
+                          <div className="text-right font-bold text-white shrink-0">
+                            ₹{item.amount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                          </div>
+                        </div>
+                      ))}
+                      
+                      {/* Top 2 Savings */}
+                      {localFinancials.savings.sort((a, b) => b.amount - a.amount).slice(0, 2).map((item, idx) => (
+                        <div key={`sav-${idx}`} className="flex items-center justify-between p-3.5 rounded-lg bg-[#34C759]/5 border border-[#34C759]/10 text-xs">
+                          <div className="flex items-center gap-2.5">
+                            <div className="h-8 w-8 rounded-lg bg-[#34C759]/10 flex items-center justify-center text-[#34C759] shrink-0">
+                              <Wallet className="h-4 w-4" />
+                            </div>
+                            <div>
+                              <div className="font-bold text-white">{item.title}</div>
+                              <div className="text-[9px] text-[#34C759] font-mono mt-0.5">Saving</div>
+                            </div>
+                          </div>
+                          <div className="text-right font-bold text-white shrink-0">
+                            ₹{item.amount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
                           </div>
                         </div>
                       ))}
