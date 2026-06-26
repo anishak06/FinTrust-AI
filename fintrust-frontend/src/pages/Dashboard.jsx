@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, PieChart, Pie, Cell } from 'recharts';
 import { Cpu, ShieldCheck, DollarSign, LogOut, Plus, Trash2, Edit, AlertCircle, ChevronRight, CheckCircle, ArrowRight, Lightbulb, Target } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { motion } from 'framer-motion';
 
 export default function Dashboard() {
   const { user, token, logout, isAdmin } = useAuth();
@@ -239,6 +240,12 @@ export default function Dashboard() {
             <span className="text-sm text-white/70 hidden sm:inline-block">
               Hi, <b className="text-white">{user?.fullName}</b>
             </span>
+            <button
+              onClick={() => navigate('/supporting-documents')}
+              className="px-4 py-1.5 rounded bg-white/5 border border-white/10 text-white text-xs font-semibold hover:bg-white/10 transition-all"
+            >
+              Supporting Bills
+            </button>
             {isAdmin && (
               <button
                 onClick={() => navigate('/admin')}
@@ -266,12 +273,20 @@ export default function Dashboard() {
             <h1 className="text-2xl md:text-3xl font-bold">Borrower Dashboard</h1>
             <p className="text-white/50 text-xs mt-1">Real-time alternative credit underwriting parameters</p>
           </div>
-          <button
-            onClick={() => navigate('/check-eligibility')}
-            className="px-5 py-2.5 rounded-lg btn-glow-sky text-[#071B3B] font-bold text-sm flex items-center gap-1.5"
-          >
-            <Plus className="h-4 w-4" /> New Credit Assessment
-          </button>
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
+            <button
+              onClick={() => navigate('/supporting-documents')}
+              className="px-5 py-2.5 rounded-lg border border-[#59CFFF]/30 text-[#59CFFF] font-bold text-sm hover:bg-[#59CFFF]/10 transition-all flex items-center justify-center gap-1.5"
+            >
+              Upload Supporting Bills
+            </button>
+            <button
+              onClick={() => navigate('/check-eligibility')}
+              className="px-5 py-2.5 rounded-lg btn-glow-sky text-[#071B3B] font-bold text-sm flex items-center justify-center gap-1.5"
+            >
+              <Plus className="h-4 w-4" /> New Credit Assessment
+            </button>
+          </div>
         </div>
 
         {error && (
@@ -501,6 +516,30 @@ export default function Dashboard() {
                 </h3>
                 <div className="h-1.5 w-12 bg-[#F5E6D3] rounded-full mb-2" />
                 
+                {/* Underwriting Weight Factors */}
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-4">
+                  <div className="p-2.5 rounded-lg bg-white/5 border border-white/5 text-center">
+                    <div className="text-[9px] text-white/50 uppercase font-semibold">Savings</div>
+                    <div className="text-xs font-bold text-[#59CFFF] mt-0.5">30% Weight</div>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-white/5 border border-white/5 text-center">
+                    <div className="text-[9px] text-white/50 uppercase font-semibold">Bill Payments</div>
+                    <div className="text-xs font-bold text-[#59CFFF] mt-0.5">25% Weight</div>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-white/5 border border-white/5 text-center">
+                    <div className="text-[9px] text-white/50 uppercase font-semibold">Income Stability</div>
+                    <div className="text-xs font-bold text-[#59CFFF] mt-0.5">20% Weight</div>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-white/5 border border-white/5 text-center">
+                    <div className="text-[9px] text-white/50 uppercase font-semibold">Expense Mgt</div>
+                    <div className="text-xs font-bold text-[#59CFFF] mt-0.5">15% Weight</div>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-white/5 border border-white/5 text-center col-span-2 sm:col-span-1">
+                    <div className="text-[9px] text-white/50 uppercase font-semibold">UPI Transactions</div>
+                    <div className="text-xs font-bold text-[#59CFFF] mt-0.5">10% Weight</div>
+                  </div>
+                </div>
+
                 <div className="divide-y divide-white/5 space-y-3">
                   {scoreBreakdown.length > 0 ? (
                     scoreBreakdown.map((item, index) => (

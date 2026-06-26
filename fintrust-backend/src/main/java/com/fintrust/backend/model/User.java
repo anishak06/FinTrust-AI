@@ -17,14 +17,19 @@ public class User {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(nullable = false)
+    private String fullName;
+
     @Column(unique = true, nullable = false)
-    private String username;
+    private String username; // Serves as username / login credential
+
+    @Column(nullable = false)
+    private String email;
 
     @Column(nullable = false)
     private String password;
 
-    @Column(nullable = false)
-    private String fullName;
+    private String occupation;
 
     @Column(nullable = false)
     private String role; // ROLE_USER, ROLE_ADMIN

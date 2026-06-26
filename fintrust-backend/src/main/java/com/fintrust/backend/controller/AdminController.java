@@ -1,9 +1,7 @@
 package com.fintrust.backend.controller;
 
-import com.fintrust.backend.model.CreditAssessment;
-import com.fintrust.backend.model.User;
-import com.fintrust.backend.repository.CreditAssessmentRepository;
-import com.fintrust.backend.repository.UserRepository;
+import com.fintrust.backend.model.*;
+import com.fintrust.backend.repository.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -20,7 +18,10 @@ public class AdminController {
     private UserRepository userRepository;
 
     @Autowired
-    private CreditAssessmentRepository creditAssessmentRepository;
+    private CreditScoreRepository creditScoreRepository;
+
+    @Autowired
+    private LoanAssessmentRepository loanAssessmentRepository;
 
     @GetMapping("/users")
     public ResponseEntity<?> getAllUsersWithScores() {
@@ -35,14 +36,23 @@ public class AdminController {
             userMap.put("role", user.getRole());
             userMap.put("createdAt", user.getCreatedAt());
 
-            Optional<CreditAssessment> latest = creditAssessmentRepository.findFirstByUserIdOrderByCreatedAtDesc(user.getId());
-            if (latest.isPresent()) {
+            Optional<CreditScore> latestScore = creditScoreRepository.findFirstByUserIdOrderByCalculationDateDesc(user.getId());
+            Optional<LoanAssessment> latestLoan = loanAssessmentRepository.findFirstByUserIdOrderByCreatedAtDesc(user.getId());
+
+            if (latestScore.isPresent()) {
                 userMap.put("hasAssessment", true);
-                userMap.put("latestScore", latest.get().getScore());
-                userMap.put("riskCategory", latest.get().getRiskCategory());
-                userMap.put("healthStatus", latest.get().getHealthStatus());
-                userMap.put("loanEligible", latest.get().getLoanEligible());
-                userMap.put("lastAssessmentDate", latest.get().getCreatedAt());
+                userMap.put("latestScore", latestScore.get().getScore());
+                userMap.put("riskCategory", latestScore.get().getRiskLevel());
+                
+                String health = "Poor";
+                int score = latestScore.get().getScore();
+                if (score >= 750) health = "Excellent";
+                else if (score >= 650) health = "Good";
+                else if (score >= 550) health = "Fair";
+                userMap.put("healthStatus", health);
+                
+                userMap.put("loanEligible", latestLoan.isPresent() && latestLoan.get().getEligibility());
+                userMap.put("lastAssessmentDate", latestScore.get().getCalculationDate());
             } else {
                 userMap.put("hasAssessment", false);
                 userMap.put("latestScore", null);
@@ -60,44 +70,55 @@ public class AdminController {
     @GetMapping("/stats")
     public ResponseEntity<?> getPlatformStats() {
         List<User> users = userRepository.findAll();
-        List<CreditAssessment> assessments = creditAssessmentRepository.findAll();
+        List<CreditScore> scores = creditScoreRepository.findAll();
+        List<LoanAssessment> loans = loanAssessmentRepository.findAll();
 
         long totalUsers = users.size();
-        long assessedUsers = assessments.stream().map(CreditAssessment::getUserId).distinct().count();
+        
+        // Pick latest score for each user
+        Map<Long, CreditScore> latestUserScores = new HashMap<>();
+        for (CreditScore sc : scores) {
+            CreditScore existing = latestUserScores.get(sc.getUserId());
+            if (existing == null || sc.getCalculationDate().isAfter(existing.getCalculationDate())) {
+                latestUserScores.put(sc.getUserId(), sc);
+            }
+        }
+        
+        // Pick latest loan for each user
+        Map<Long, LoanAssessment> latestUserLoans = new HashMap<>();
+        for (LoanAssessment la : loans) {
+            LoanAssessment existing = latestUserLoans.get(la.getUserId());
+            if (existing == null || la.getCreatedAt().isAfter(existing.getCreatedAt())) {
+                latestUserLoans.put(la.getUserId(), la);
+            }
+        }
 
-        // Calculate average score of the LATEST assessments for each user
-        Map<Long, Integer> userLatestScores = new HashMap<>();
+        long assessedUsers = latestUserScores.size();
+        double totalScoreSum = 0;
         long eligibleCount = 0;
         long lowRiskCount = 0;
         long medRiskCount = 0;
         long highRiskCount = 0;
 
-        // Group assessments by user and pick latest
-        Map<Long, CreditAssessment> latestUserAssessments = new HashMap<>();
-        for (CreditAssessment assessment : assessments) {
-            CreditAssessment existing = latestUserAssessments.get(assessment.getUserId());
-            if (existing == null || assessment.getCreatedAt().isAfter(existing.getCreatedAt())) {
-                latestUserAssessments.put(assessment.getUserId(), assessment);
-            }
-        }
-
-        double totalScoreSum = 0;
-        for (CreditAssessment a : latestUserAssessments.values()) {
-            totalScoreSum += a.getScore();
-            if (a.getLoanEligible()) {
-                eligibleCount++;
-            }
-            if ("Low Risk".equalsIgnoreCase(a.getRiskCategory())) {
+        for (CreditScore cs : latestUserScores.values()) {
+            totalScoreSum += cs.getScore();
+            
+            if ("Low Risk".equalsIgnoreCase(cs.getRiskLevel())) {
                 lowRiskCount++;
-            } else if ("Medium Risk".equalsIgnoreCase(a.getRiskCategory())) {
+            } else if ("Medium Risk".equalsIgnoreCase(cs.getRiskLevel())) {
                 medRiskCount++;
             } else {
                 highRiskCount++;
             }
+
+            LoanAssessment la = latestUserLoans.get(cs.getUserId());
+            if (la != null && la.getEligibility()) {
+                eligibleCount++;
+            }
         }
 
-        double averageScore = latestUserAssessments.isEmpty() ? 0.0 : totalScoreSum / latestUserAssessments.size();
-        double approvalRate = latestUserAssessments.isEmpty() ? 0.0 : (double) eligibleCount / latestUserAssessments.size() * 100.0;
+        double averageScore = assessedUsers == 0 ? 0.0 : totalScoreSum / assessedUsers;
+        double approvalRate = assessedUsers == 0 ? 0.0 : (double) eligibleCount / assessedUsers * 100.0;
 
         Map<String, Object> stats = new HashMap<>();
         stats.put("totalUsers", totalUsers);
@@ -113,17 +134,19 @@ public class AdminController {
 
         // Recent assessment activities
         List<Map<String, Object>> recentActivities = new ArrayList<>();
-        assessments.stream()
-                .sorted((a1, a2) -> a2.getCreatedAt().compareTo(a1.getCreatedAt()))
+        scores.stream()
+                .sorted((s1, s2) -> s2.getCalculationDate().compareTo(s1.getCalculationDate()))
                 .limit(5)
-                .forEach(a -> {
+                .forEach(s -> {
                     Map<String, Object> act = new HashMap<>();
-                    Optional<User> u = userRepository.findById(a.getUserId());
+                    Optional<User> u = userRepository.findById(s.getUserId());
                     act.put("username", u.isPresent() ? u.get().getFullName() : "Unknown User");
-                    act.put("score", a.getScore());
-                    act.put("risk", a.getRiskCategory());
-                    act.put("eligible", a.getLoanEligible());
-                    act.put("date", a.getCreatedAt());
+                    act.put("score", s.getScore());
+                    act.put("risk", s.getRiskLevel());
+                    
+                    Optional<LoanAssessment> lOpt = loanAssessmentRepository.findFirstByUserIdOrderByCreatedAtDesc(s.getUserId());
+                    act.put("eligible", lOpt.isPresent() && lOpt.get().getEligibility());
+                    act.put("date", s.getCalculationDate());
                     recentActivities.add(act);
                 });
 

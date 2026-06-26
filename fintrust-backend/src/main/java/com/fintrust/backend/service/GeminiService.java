@@ -4,9 +4,11 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fintrust.backend.model.CreditAssessment;
+import com.fintrust.backend.model.AiRecommendation;
+import com.fintrust.backend.repository.AiRecommendationRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -16,9 +18,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestTemplate;
 
-import java.util.ArrayList;
+import java.time.LocalDate;
+import java.util.Base64;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 @Service
@@ -31,54 +33,158 @@ public class GeminiService {
     @Value("${app.gemini.key}")
     private String geminiKey;
 
+    @Autowired
+    private AiRecommendationRepository aiRecommendationRepository;
+
     private final RestTemplate restTemplate = new RestTemplate();
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public CreditAssessment assessCredit(CreditAssessment assessment) {
+    /**
+     * Generates intelligent, data-driven financial insights using Gemini AI.
+     * Scrubbed of all PII. Gemini does NOT calculate score, eligibility, or loan amounts.
+     */
+    public AiRecommendation generateFinancialInsights(
+            Long userId, int score, double income, double savings, double expenses, double consistency, int transactions,
+            boolean loanEligible, double suggestedLoanAmount) {
+
         if (!StringUtils.hasText(geminiKey)) {
-            logger.info("Gemini API key is not configured. Falling back to local credit engine.");
-            return calculateLocalAssessment(assessment);
+            logger.info("Gemini API key is not configured. Falling back to local rule-based insights engine.");
+            return calculateLocalInsights(userId, score, income, savings, expenses, consistency, transactions, loanEligible, suggestedLoanAmount);
         }
 
         try {
-            String prompt = buildPrompt(assessment);
+            String prompt = buildInsightsPrompt(score, income, savings, expenses, consistency, transactions, loanEligible, suggestedLoanAmount);
             String response = callGeminiApi(prompt);
-            return parseGeminiResponse(response, assessment);
+            return parseInsightsResponse(userId, response);
         } catch (Exception e) {
-            logger.error("Error invoking Gemini API. Falling back to local credit engine.", e);
-            return calculateLocalAssessment(assessment);
+            logger.error("Error generating insights via Gemini. Falling back to local engine.", e);
+            return calculateLocalInsights(userId, score, income, savings, expenses, consistency, transactions, loanEligible, suggestedLoanAmount);
         }
     }
 
-    private String buildPrompt(CreditAssessment a) {
-        return "You are FinTrust AI, a modern alternative credit scoring engine designed to evaluate individuals with little or no traditional credit history.\n" +
-                "Evaluate the following alternative financial profile:\n" +
-                "- Monthly Income: \u20B9" + a.getMonthlyIncome() + "\n" +
-                "- Monthly Expenses: \u20B9" + a.getMonthlyExpenses() + "\n" +
-                "- Monthly Savings: \u20B9" + a.getMonthlySavings() + "\n" +
-                "- Utility Bill Payment Consistency: " + a.getUtilityBillConsistency() + "\n" +
-                "- UPI Digital Transactions Frequency: " + a.getUpiTransactionFrequency() + " transactions/month\n" +
-                "- Employment Status: " + a.getEmploymentType() + "\n" +
-                "- Occupation: " + a.getOccupation() + "\n" +
-                "- Existing Active Loans: \u20B9" + (a.getExistingLoans() != null ? a.getExistingLoans() : 0.0) + "\n\n" +
+    private String buildInsightsPrompt(
+            int score, double income, double savings, double expenses, double consistency, int transactions,
+            boolean loanEligible, double suggestedLoanAmount) {
+        
+        return "You are FinTrust AI, a modern financial intelligence engine. Generate intelligent, data-driven financial insights based on this anonymized borrower profile:\n" +
+                "- Credit Score: " + score + " / 900\n" +
+                "- Monthly Income: \u20B9" + income + "\n" +
+                "- Monthly Savings: \u20B9" + savings + "\n" +
+                "- Monthly Expenses: \u20B9" + expenses + "\n" +
+                "- Bill Payment Consistency: " + consistency + "%\n" +
+                "- UPI Digital Transactions: " + transactions + " transactions/month\n" +
+                "- Loan Eligibility Status: " + (loanEligible ? "ELIGIBLE" : "NOT ELIGIBLE") + "\n" +
+                "- Maximum Suggested Loan Limit: \u20B9" + suggestedLoanAmount + "\n\n" +
                 "Evaluate and return exactly a JSON object (no markdown, no ```json, no extra text, just raw JSON) with the following structure:\n" +
                 "{\n" +
-                "  \"score\": 750, // integer from 300 to 900 representing credit score\n" +
-                "  \"riskCategory\": \"Low Risk\", // Low Risk, Medium Risk, High Risk\n" +
-                "  \"healthStatus\": \"Excellent\", // Excellent, Good, Fair, Poor\n" +
-                "  \"breakdown\": [\n" +
-                "     { \"factor\": \"Consistent Savings\", \"points\": 120, \"description\": \"Savings rate of 30% indicates solid liquidity buffer\" },\n" +
-                "     { \"factor\": \"UPI Transaction Patterns\", \"points\": 40, \"description\": \"Regular small transactions show digital activity\" }\n" +
-                "  ], // detailed breakdown including positive and negative scoring factors\n" +
-                "  \"loanEligible\": true, // boolean\n" +
-                "  \"suggestedLoanAmount\": 150000.0, // double\n" +
-                "  \"loanRiskLevel\": \"Low\", // Low, Moderate, High\n" +
-                "  \"confidenceScore\": 0.92, // double between 0.0 and 1.0\n" +
+                "  \"geminiInsights\": \"General analytical summary of their financial health, savings buffers, and cash flow stability...\",\n" +
+                "  \"strengths\": [\n" +
+                "     \"\u2705 First key strength...\",\n" +
+                "     \"\u2705 Second key strength...\"\n" +
+                "  ], // List what they are doing well based on data\n" +
+                "  \"weaknesses\": [\n" +
+                "     \"\u26A0 First warning area...\",\n" +
+                "     \"\u26A0 Second warning area...\"\n" +
+                "  ], // List areas to watch out for based on data\n" +
+                "  \"loanEligibilityExplanation\": \"Explain WHY the user received their specific eligibility status and suggested loan limit based on the underwriting parameters...\",\n" +
                 "  \"recommendations\": [\n" +
-                "     \"Increase monthly savings by \u20B91000 to maximize score\",\n" +
-                "     \"Reduce discretionary spending by 10%\"\n" +
-                "  ]\n" +
+                "     \"Increase monthly savings to \u20B9\" + (estimated required savings target) + \" to strengthen buffers.\",\n" +
+                "     \"Reduce discretionary spending by 10% to lower expenses under 70% of income.\",\n" +
+                "     \"Maintain utility payment consistency on time to secure consistency score...\"\n" +
+                "  ] // List personalized, data-driven recommendations with actual numbers. Do not output generic advice.\n" +
                 "}";
+    }
+
+    private AiRecommendation parseInsightsResponse(Long userId, String responseStr) throws Exception {
+        JsonNode root = objectMapper.readTree(responseStr);
+        String jsonText = root.path("candidates").get(0).path("content").path("parts").get(0).path("text").asText();
+        
+        if (jsonText.contains("```")) {
+            jsonText = jsonText.replaceAll("```json|```", "").trim();
+        }
+
+        JsonNode result = objectMapper.readTree(jsonText);
+
+        AiRecommendation rec = new AiRecommendation();
+        rec.setUserId(userId);
+        rec.setGeminiInsights(result.path("geminiInsights").asText("Your cash flow and savings buffers display positive progress."));
+        rec.setStrengths(objectMapper.writeValueAsString(result.path("strengths")));
+        rec.setWeaknesses(objectMapper.writeValueAsString(result.path("weaknesses")));
+        rec.setRecommendations(objectMapper.writeValueAsString(result.path("recommendations")));
+
+        // Concat explanation into insights or store it in DB (we can concat it into geminiInsights to display on dashboard!)
+        String rawInsights = result.path("geminiInsights").asText();
+        String explanation = result.path("loanEligibilityExplanation").asText();
+        rec.setGeminiInsights(rawInsights + "\n\n[Underwriting Decision Details]: " + explanation);
+
+        return aiRecommendationRepository.save(rec);
+    }
+
+    /**
+     * Extracts bill metadata (type, amount, due date, merchant) from uploaded bill file bytes.
+     */
+    public Map<String, Object> extractBillMetadata(byte[] fileBytes, String mimeType, String fileName) {
+        if (!StringUtils.hasText(geminiKey)) {
+            logger.info("Gemini API key is not configured. Falling back to local file parsing simulation.");
+            return calculateLocalBillMetadata(fileName);
+        }
+
+        try {
+            String base64Data = Base64.getEncoder().encodeToString(fileBytes);
+            String prompt = "You are an AI bill reader. Analyze this document and extract its billing metadata.\n" +
+                    "Supported Bill Types: ELECTRICITY, WATER, INTERNET, MOBILE, GAS, RENT, BANK_STATEMENT.\n" +
+                    "Return exactly a JSON object (no markdown, no ```json, no extra text, just raw JSON) with the following structure:\n" +
+                    "{\n" +
+                    "  \"billType\": \"ELECTRICITY\",\n" +
+                    "  \"merchantName\": \"Merchant Name (e.g. Tata Power)\",\n" +
+                    "  \"amount\": 1500.00, // double\n" +
+                    "  \"dueDate\": \"YYYY-MM-DD\", // Due date found on bill\n" +
+                    "  \"paymentDate\": \"YYYY-MM-DD\" // Payment date if paid (or null/empty if unpaid)\n" +
+                    "}";
+
+            String url = geminiUrl + "?key=" + geminiKey;
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+
+            ObjectNode requestBody = objectMapper.createObjectNode();
+            ArrayNode contents = requestBody.putArray("contents");
+            ObjectNode content = contents.addObject();
+            ArrayNode parts = content.putArray("parts");
+            parts.addObject().put("text", prompt);
+
+            // Add base64 document bytes directly to parts
+            ObjectNode inlinePart = parts.addObject();
+            ObjectNode inlineData = inlinePart.putObject("inlineData");
+            inlineData.put("mimeType", mimeType);
+            inlineData.put("data", base64Data);
+
+            ObjectNode generationConfig = requestBody.putObject("generationConfig");
+            generationConfig.put("responseMimeType", "application/json");
+
+            HttpEntity<String> entity = new HttpEntity<>(objectMapper.writeValueAsString(requestBody), headers);
+            ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);
+
+            JsonNode root = objectMapper.readTree(response.getBody());
+            String jsonText = root.path("candidates").get(0).path("content").path("parts").get(0).path("text").asText();
+            
+            if (jsonText.contains("```")) {
+                jsonText = jsonText.replaceAll("```json|```", "").trim();
+            }
+
+            JsonNode result = objectMapper.readTree(jsonText);
+            Map<String, Object> meta = new HashMap<>();
+            meta.put("billType", result.path("billType").asText("ELECTRICITY"));
+            meta.put("merchantName", result.path("merchantName").asText("Utility Corp"));
+            meta.put("amount", result.path("amount").asDouble(1000.0));
+            meta.put("dueDate", result.path("dueDate").asText(LocalDate.now().plusDays(10).toString()));
+            meta.put("paymentDate", result.path("paymentDate").isNull() ? null : result.path("paymentDate").asText());
+
+            return meta;
+
+        } catch (Exception e) {
+            logger.error("Error extracting bill metadata via Gemini. Falling back to local file parsing simulation.", e);
+            return calculateLocalBillMetadata(fileName);
+        }
     }
 
     private String callGeminiApi(String prompt) throws Exception {
@@ -94,7 +200,7 @@ public class GeminiService {
         ArrayNode parts = content.putArray("parts");
         parts.addObject().put("text", prompt);
 
-        // If you want to configure generationConfig for JSON response
+        // Configure generationConfig for JSON response
         ObjectNode generationConfig = requestBody.putObject("generationConfig");
         generationConfig.put("responseMimeType", "application/json");
 
@@ -104,185 +210,125 @@ public class GeminiService {
         return response.getBody();
     }
 
-    private CreditAssessment parseGeminiResponse(String responseStr, CreditAssessment assessment) throws Exception {
-        JsonNode root = objectMapper.readTree(responseStr);
-        String jsonText = root.path("candidates").get(0).path("content").path("parts").get(0).path("text").asText();
+    private AiRecommendation calculateLocalInsights(
+            Long userId, int score, double income, double savings, double expenses, double consistency, int transactions,
+            boolean loanEligible, double suggestedLoanAmount) {
+
+        AiRecommendation rec = new AiRecommendation();
+        rec.setUserId(userId);
         
-        // Clean markdown backticks if Gemini ignored the configuration and returned them anyway
-        if (jsonText.contains("```")) {
-            jsonText = jsonText.replaceAll("```json|```", "").trim();
+        // Formulate Strengths
+        ArrayNode strengths = objectMapper.createArrayNode();
+        if (savings / income >= 0.3) {
+            strengths.add("\u2705 You consistently save over 30% of your monthly income.");
+        } else if (savings / income >= 0.15) {
+            strengths.add("\u2705 You maintain a healthy savings buffer of " + Math.round(savings / income * 100) + "%.");
+        }
+        if (consistency >= 90) {
+            strengths.add("\u2705 Your utility bill payment history is excellent.");
+        }
+        if (expenses / income < 0.70) {
+            strengths.add("\u2705 Your monthly expense management is highly conservative.");
         }
 
-        JsonNode result = objectMapper.readTree(jsonText);
-
-        assessment.setScore(result.path("score").asInt(650));
-        assessment.setRiskCategory(result.path("riskCategory").asText("Medium Risk"));
-        assessment.setHealthStatus(result.path("healthStatus").asText("Fair"));
-
-        // Store breakdown and recommendations as JSON string
-        assessment.setScoreBreakdown(objectMapper.writeValueAsString(result.path("breakdown")));
-        assessment.setRecommendations(objectMapper.writeValueAsString(result.path("recommendations")));
-
-        assessment.setLoanEligible(result.path("loanEligible").asBoolean(false));
-        assessment.setSuggestedLoanAmount(result.path("suggestedLoanAmount").asDouble(0.0));
-        assessment.setLoanRiskLevel(result.path("loanRiskLevel").asText("High"));
-        assessment.setConfidenceScore(result.path("confidenceScore").asDouble(0.70));
-
-        return assessment;
-    }
-
-    private CreditAssessment calculateLocalAssessment(CreditAssessment a) {
-        int baseScore = 550;
-        List<Map<String, Object>> breakdown = new ArrayList<>();
-        List<String> recommendations = new ArrayList<>();
-
-        // 1. Savings Consistency
-        double income = a.getMonthlyIncome() > 0 ? a.getMonthlyIncome() : 1.0;
-        double savingsRatio = a.getMonthlySavings() / income;
-        
-        if (savingsRatio >= 0.30) {
-            baseScore += 120;
-            breakdown.add(createBreakdownItem("Consistent Savings", 120, "Excellent savings rate of " + Math.round(savingsRatio * 100) + "%"));
-        } else if (savingsRatio >= 0.15) {
-            baseScore += 70;
-            breakdown.add(createBreakdownItem("Healthy Savings Buffer", 70, "Healthy savings rate of " + Math.round(savingsRatio * 100) + "%"));
-        } else if (savingsRatio >= 0.05) {
-            baseScore += 30;
-            breakdown.add(createBreakdownItem("Minimal Savings Rate", 30, "Minimal savings buffer of " + Math.round(savingsRatio * 100) + "%"));
-        } else {
-            baseScore -= 50;
-            breakdown.add(createBreakdownItem("Low Savings Rate", -50, "Extremely thin savings buffer. High vulnerability."));
-            recommendations.add("Increase monthly savings by \u20B91,500 to build an emergency fund.");
+        if (strengths.size() == 0) {
+            strengths.add("\u2705 Basic baseline financial accounts registered.");
         }
 
-        // 2. Utility Bill Payment Consistency
-        String billConsistency = a.getUtilityBillConsistency();
-        if ("CONSISTENT".equalsIgnoreCase(billConsistency)) {
-            baseScore += 110;
-            breakdown.add(createBreakdownItem("Timely Bill Payments", 110, "100% consistent utility bill payments on record"));
-        } else if ("SEMI_CONSISTENT".equalsIgnoreCase(billConsistency)) {
-            baseScore += 40;
-            breakdown.add(createBreakdownItem("Variable Utility Payments", 40, "Mostly timely payments with slight delays"));
-            recommendations.add("Automate utility bill payments to secure credit score points.");
-        } else {
-            baseScore -= 70;
-            breakdown.add(createBreakdownItem("Missed Utility Payments", -70, "Inconsistent bill payment behavior detected"));
-            recommendations.add("Prioritize clearing all due utility bills on time.");
+        // Formulate Weaknesses
+        ArrayNode weaknesses = objectMapper.createArrayNode();
+        if (expenses / income >= 0.8) {
+            weaknesses.add("\u26A0 Discretionary spending is higher than recommended.");
+        }
+        if (savings / income < 0.15) {
+            weaknesses.add("\u26A0 Monthly savings rate is thin, leaving you vulnerable to cashflow shocks.");
+        }
+        if (consistency < 75) {
+            weaknesses.add("\u26A0 Utility payment delays are negatively impacting your consistency index.");
+        }
+        if (weaknesses.size() == 0) {
+            weaknesses.add("\u26A0 No high-priority warnings detected on your profile.");
         }
 
-        // 3. Spending Behavior (Expense Ratio)
-        double expenseRatio = a.getMonthlyExpenses() / income;
-        if (expenseRatio <= 0.50) {
-            baseScore += 80;
-            breakdown.add(createBreakdownItem("Controlled Spending", 80, "Excellent expense control under 50% of income"));
-        } else if (expenseRatio >= 0.85) {
-            baseScore -= 90;
-            breakdown.add(createBreakdownItem("High Discretionary Spending", -90, "Extremely high expense ratio of " + Math.round(expenseRatio * 100) + "%"));
-            recommendations.add("Reduce discretionary spending by 15% to increase monthly buffers.");
-        } else {
-            baseScore += 10;
-            breakdown.add(createBreakdownItem("Moderate Expense Balance", 10, "Average spending pattern"));
+        // Recommendations
+        ArrayNode recs = objectMapper.createArrayNode();
+        double targetSavings = Math.round(income * 0.30);
+        recs.add("Increase monthly savings to \u20B9" + targetSavings + " to maintain a stable 30% savings ratio.");
+        recs.add("Maintain your utility payment consistency on time.");
+        if (expenses / income >= 0.7) {
+            recs.add("Reduce discretionary spending by 10% to lower overall expense ratios.");
         }
+        recs.add("Improve your savings ratio above 30% to maximize underwriting limits.");
 
-        // 4. Income / Employment Stability
-        String empType = a.getEmploymentType();
-        if ("SALARIED".equalsIgnoreCase(empType)) {
-            baseScore += 90;
-            breakdown.add(createBreakdownItem("Stable Salaried Income", 90, "Regular salaried paycheck reduces credit default risk"));
-        } else if ("SELF_EMPLOYED".equalsIgnoreCase(empType)) {
-            baseScore += 60;
-            breakdown.add(createBreakdownItem("Business Revenue Stream", 60, "Active self-employment income patterns"));
-            recommendations.add("Maintain structured business ledger logs to demonstrate stable cash flow.");
-        } else if ("STUDENT".equalsIgnoreCase(empType)) {
-            baseScore += 20;
-            breakdown.add(createBreakdownItem("Student Credit Starter", 20, "Initial student baseline profile"));
-        } else {
-            baseScore -= 80;
-            breakdown.add(createBreakdownItem("No Active Income Stream", -80, "Unemployed status increases credit risk profile"));
-            recommendations.add("Acquire part-time or structured employment to establish creditworthiness.");
-        }
-
-        // 5. UPI digital transactions
-        int upiFreq = a.getUpiTransactionFrequency() != null ? a.getUpiTransactionFrequency() : 0;
-        if (upiFreq > 50) {
-            baseScore -= 20;
-            breakdown.add(createBreakdownItem("High UPI Transaction Velocity", -20, "Elevated small-value digital expenditure patterns"));
-            recommendations.add("Consolidate recurring micro-payments to reduce transaction noise.");
-        } else if (upiFreq >= 10) {
-            baseScore += 50;
-            breakdown.add(createBreakdownItem("Active Digital Fingerprint", 50, "Frequent active digital transaction history"));
-        } else {
-            baseScore += 10;
-            breakdown.add(createBreakdownItem("Low Digital Footprint", 10, "Sparse transaction frequency"));
-        }
-
-        // 6. Existing Loans
-        double loans = a.getExistingLoans() != null ? a.getExistingLoans() : 0.0;
-        if (loans > 0) {
-            baseScore -= 40;
-            breakdown.add(createBreakdownItem("Existing Debt Liabilities", -40, "Active outstanding loans on record"));
-            recommendations.add("Limit new debt inquiries until current liabilities are fully settled.");
-        } else {
-            baseScore += 50;
-            breakdown.add(createBreakdownItem("Debt Free Profile", 50, "No active outstanding credit liabilities"));
-        }
-
-        // Clip the credit score to standard 300 - 900
-        int finalScore = Math.max(300, Math.min(900, baseScore));
-        a.setScore(finalScore);
-
-        // Set Risk Category
-        if (finalScore >= 750) {
-            a.setRiskCategory("Low Risk");
-            a.setHealthStatus("Excellent");
-        } else if (finalScore >= 630) {
-            a.setRiskCategory("Medium Risk");
-            a.setHealthStatus("Good");
-        } else if (finalScore >= 520) {
-            a.setRiskCategory("Medium Risk");
-            a.setHealthStatus("Fair");
-        } else {
-            a.setRiskCategory("High Risk");
-            a.setHealthStatus("Poor");
-        }
-
-        // Loan Eligibility
-        boolean eligible = finalScore >= 600 && !"UNEMPLOYED".equalsIgnoreCase(empType);
-        a.setLoanEligible(eligible);
-        if (eligible) {
-            double multiplier = (finalScore - 500) / 100.0;
-            double suggestedAmount = Math.round((a.getMonthlyIncome() * 4 * multiplier) / 5000) * 5000;
-            a.setSuggestedLoanAmount(suggestedAmount);
-            a.setLoanRiskLevel(finalScore >= 750 ? "Low" : "Moderate");
-        } else {
-            a.setSuggestedLoanAmount(0.0);
-            a.setLoanRiskLevel("High");
-        }
-
-        double conf = 0.72 + (finalScore - 300) / 2500.0;
-        a.setConfidenceScore(Math.round(conf * 100.0) / 100.0);
-
-        if (recommendations.isEmpty()) {
-            recommendations.add("Maintain current consistent financial behavior.");
-            recommendations.add("Consider creating a new savings goal to structure long-term growth.");
-        }
+        // Insights & Explanation
+        String insights = "Based on your credit assessment of " + score + " points, your liquidity buffers are stable.";
+        String explanation = "Underwriting criteria determines " + (loanEligible ? "ELIGIBLE" : "NOT ELIGIBLE") + 
+                " status. " + (loanEligible ? "Your credit score enables access up to " + Math.round(suggestedLoanAmount / savings) + "x your monthly savings rate." 
+                : "A minimum score of 550 is required to unlock alternative underwriting channels.");
 
         try {
-            a.setScoreBreakdown(objectMapper.writeValueAsString(breakdown));
-            a.setRecommendations(objectMapper.writeValueAsString(recommendations));
+            rec.setStrengths(objectMapper.writeValueAsString(strengths));
+            rec.setWeaknesses(objectMapper.writeValueAsString(weaknesses));
+            rec.setRecommendations(objectMapper.writeValueAsString(recs));
         } catch (Exception e) {
-            a.setScoreBreakdown("[]");
-            a.setRecommendations("[]");
+            rec.setStrengths("[]");
+            rec.setWeaknesses("[]");
+            rec.setRecommendations("[]");
         }
 
-        return a;
+        rec.setGeminiInsights(insights + "\n\n[Underwriting Decision Details]: " + explanation);
+        return aiRecommendationRepository.save(rec);
     }
 
-    private Map<String, Object> createBreakdownItem(String factor, int points, String desc) {
-        Map<String, Object> map = new HashMap<>();
-        map.put("factor", factor);
-        map.put("points", points);
-        map.put("description", desc);
-        return map;
+    private Map<String, Object> calculateLocalBillMetadata(String fileName) {
+        Map<String, Object> meta = new HashMap<>();
+        String name = fileName.toLowerCase();
+        
+        // Set type based on file name
+        if (name.contains("electricity") || name.contains("power") || name.contains("light")) {
+            meta.put("billType", "ELECTRICITY");
+            meta.put("merchantName", "State Electricity Board");
+        } else if (name.contains("water")) {
+            meta.put("billType", "WATER");
+            meta.put("merchantName", "Municipal Water Authority");
+        } else if (name.contains("internet") || name.contains("broadband") || name.contains("wifi")) {
+            meta.put("billType", "INTERNET");
+            meta.put("merchantName", "Broadband Fiber Ltd");
+        } else if (name.contains("mobile") || name.contains("phone") || name.contains("telecom")) {
+            meta.put("billType", "MOBILE");
+            meta.put("merchantName", "Telecom Mobile Network");
+        } else if (name.contains("gas")) {
+            meta.put("billType", "GAS");
+            meta.put("merchantName", "Gas Distribution Corp");
+        } else if (name.contains("rent") || name.contains("receipt")) {
+            meta.put("billType", "RENT");
+            meta.put("merchantName", "Landlord Rental Property");
+        } else {
+            meta.put("billType", "BANK_STATEMENT");
+            meta.put("merchantName", "National Trust Bank");
+        }
+
+        // Set simulated amounts
+        double amount = Math.round(500.0 + Math.random() * 2500.0);
+        meta.put("amount", amount);
+
+        // Simulated dates (Paid on time or late based on random chance)
+        LocalDate dueDate = LocalDate.now().minusDays((int) (Math.random() * 15) - 5);
+        meta.put("dueDate", dueDate.toString());
+
+        // 80% chance it is paid, and if paid, 90% chance it is on time
+        if (Math.random() > 0.15) {
+            LocalDate paymentDate;
+            if (Math.random() > 0.10) {
+                paymentDate = dueDate.minusDays((int) (Math.random() * 5)); // paid on time
+            } else {
+                paymentDate = dueDate.plusDays((int) (Math.random() * 5) + 1); // paid late
+            }
+            meta.put("paymentDate", paymentDate.toString());
+        } else {
+            meta.put("paymentDate", null); // Unpaid
+        }
+
+        return meta;
     }
 }

@@ -3,6 +3,8 @@ package com.fintrust.backend.controller;
 import com.fintrust.backend.model.User;
 import com.fintrust.backend.repository.UserRepository;
 import com.fintrust.backend.security.JwtTokenProvider;
+import com.fintrust.backend.security.UserPrincipal;
+import com.fintrust.backend.service.AuditLogService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -31,17 +33,31 @@ public class AuthController {
     @Autowired
     private JwtTokenProvider tokenProvider;
 
+    @Autowired
+    private AuditLogService auditLogService;
+
     @PostMapping("/signup")
     public ResponseEntity<?> registerUser(@RequestBody Map<String, String> signUpRequest) {
         String username = signUpRequest.get("username");
         String password = signUpRequest.get("password");
         String fullName = signUpRequest.get("fullName");
         String role = signUpRequest.get("role"); // USER or ADMIN
+        String email = signUpRequest.get("email");
+        String occupation = signUpRequest.get("occupation");
 
         if (userRepository.existsByUsername(username)) {
             Map<String, String> response = new HashMap<>();
             response.put("error", "Username is already taken!");
             return ResponseEntity.badRequest().body(response);
+        }
+
+        // Set default email if not provided
+        if (email == null || email.trim().isEmpty()) {
+            if (username.contains("@")) {
+                email = username;
+            } else {
+                email = username + "@fintrust.com";
+            }
         }
 
         // Default role is ROLE_USER if not provided or invalid
@@ -54,10 +70,15 @@ public class AuthController {
         User user = new User();
         user.setUsername(username);
         user.setFullName(fullName);
+        user.setEmail(email);
         user.setPassword(passwordEncoder.encode(password));
         user.setRole(role);
+        user.setOccupation(occupation != null ? occupation : "General");
 
-        userRepository.save(user);
+        User savedUser = userRepository.save(user);
+
+        // Audit Logging
+        auditLogService.logAction(savedUser.getId(), "USER_SIGNUP", "SUCCESS");
 
         Map<String, String> response = new HashMap<>();
         response.put("message", "User registered successfully!");
@@ -78,6 +99,9 @@ public class AuthController {
 
         User user = userRepository.findByUsername(username).orElseThrow();
 
+        // Audit Logging
+        auditLogService.logAction(user.getId(), "USER_LOGIN", "SUCCESS");
+
         Map<String, Object> response = new HashMap<>();
         response.put("token", jwt);
         response.put("username", user.getUsername());
@@ -85,6 +109,20 @@ public class AuthController {
         response.put("role", user.getRole());
 
         return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<?> logoutUser() {
+        try {
+            Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+            if (principal instanceof UserPrincipal) {
+                Long userId = ((UserPrincipal) principal).getId();
+                auditLogService.logAction(userId, "USER_LOGOUT", "SUCCESS");
+            }
+        } catch (Exception e) {
+            // Ignore if anonymous
+        }
+        return ResponseEntity.ok(Map.of("message", "Logged out successfully!"));
     }
 
     @PostMapping("/forgot-password")

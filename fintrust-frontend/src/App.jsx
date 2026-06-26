@@ -9,6 +9,7 @@ import Signup from './pages/Signup';
 import Dashboard from './pages/Dashboard';
 import DataCollection from './pages/DataCollection';
 import AdminDashboard from './pages/AdminDashboard';
+import SupportingDocuments from './pages/SupportingDocuments';
 
 // Route Guards
 function PrivateRoute({ children }) {
@@ -63,6 +64,14 @@ function App() {
             element={
               <PrivateRoute>
                 <DataCollection />
+              </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="/supporting-documents" 
+            element={
+              <PrivateRoute>
+                <SupportingDocuments />
               </PrivateRoute>
             } 
           />
