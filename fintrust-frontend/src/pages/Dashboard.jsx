@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, BarChart, Bar, Cell } from 'recharts';
-import { Cpu, ShieldCheck, DollarSign, LogOut, Plus, Trash2, AlertCircle, ChevronRight, CheckCircle, ArrowRight, Lightbulb, Target, Search, Bell, User, FileText, Calendar, ChevronDown, CreditCard, TrendingUp, Wallet, History, CheckCircle2, Menu, X, Globe, Activity } from 'lucide-react';
+import { Cpu, ShieldCheck, DollarSign, LogOut, Plus, Trash2, AlertCircle, ChevronRight, CheckCircle, ArrowRight, Lightbulb, Target, Search, Bell, User, FileText, Calendar, ChevronDown, CreditCard, TrendingUp, Wallet, History, CheckCircle2, Menu, X, Globe, Activity, QrCode } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import PremiumBackground from '../components/PremiumBackground';
@@ -11,13 +11,20 @@ export default function Dashboard() {
   const { user, token, logout, isAdmin } = useAuth();
   const navigate = useNavigate();
 
+  // Helper to get current Month (Title case) and Year
+  const currentDate = new Date();
+  const currentMonthName = currentDate.toLocaleString('default', { month: 'long' });
+  const titleCaseMonth = currentMonthName.charAt(0).toUpperCase() + currentMonthName.slice(1).toLowerCase();
+  const currentYearNum = currentDate.getFullYear();
+
   // Data states
   const [latestAssessment, setLatestAssessment] = useState(null);
   const [assessmentHistory, setAssessmentHistory] = useState([]);
   const [goals, setGoals] = useState([]);
-  const [localFinancials, setLocalFinancials] = useState({ expenses: [], savings: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [selectedMonth, setSelectedMonth] = useState(titleCaseMonth);
+  const [selectedYear, setSelectedYear] = useState(currentYearNum.toString());
 
   // Tab state & Responsive mobile menu trigger
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -35,12 +42,18 @@ export default function Dashboard() {
   const [goalError, setGoalError] = useState('');
   const [goalLoading, setGoalLoading] = useState(false);
 
+  // QR Modal State
+  const [qrModalOpen, setQrModalOpen] = useState(false);
+  const [qrData, setQrData] = useState('');
+  const [qrLoading, setQrLoading] = useState(false);
+  const [qrError, setQrError] = useState('');
+
   const fetchData = async () => {
     setLoading(true);
     setError('');
     try {
-      // 1. Fetch latest assessment
-      const latestRes = await fetch('http://localhost:8080/api/credit/latest', {
+      // 1. Fetch latest assessment for selected month/year
+      const latestRes = await fetch(`http://localhost:8080/api/credit/latest?month=${selectedMonth}&year=${selectedYear}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const latestData = await latestRes.json();
@@ -69,20 +82,6 @@ export default function Dashboard() {
         setGoals(goalsData);
       }
 
-      // 4. Load local financial data
-      try {
-        const stored = localStorage.getItem('fintrust_financial_data');
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          setLocalFinancials({ 
-            expenses: parsed.monthlyExpenses || [], 
-            savings: parsed.monthlySavings || [] 
-          });
-        }
-      } catch (err) {
-        console.error("Failed to parse local financial data", err);
-      }
-
     } catch (err) {
       setError('Failed to fetch dashboard data. Please try again.');
     } finally {
@@ -94,7 +93,29 @@ export default function Dashboard() {
     if (token) {
       fetchData();
     }
-  }, [token]);
+  }, [token, selectedMonth, selectedYear]);
+
+  const handleChartClick = (state) => {
+    if (state && state.activePayload && state.activePayload.length > 0) {
+      const clickedPoint = state.activePayload[0].payload;
+      if (clickedPoint.month && clickedPoint.year) {
+        setSelectedMonth(clickedPoint.month);
+        setSelectedYear(clickedPoint.year.toString());
+      }
+    }
+  };
+
+  const historicalChartData = [...assessmentHistory]
+    .reverse()
+    .map(item => ({
+      name: `${item.month ? item.month.substring(0, 3) : ''} ${item.year || ''}`,
+      month: item.month,
+      year: item.year,
+      Income: item.income || 0,
+      Expenses: item.expenses || 0,
+      Savings: item.savings || 0,
+      Score: item.score || 300
+    }));
 
   const handleCreateGoal = async (e) => {
     e.preventDefault();
@@ -165,6 +186,28 @@ export default function Dashboard() {
       }
     } catch (err) {
       alert('Failed to delete goal.');
+    }
+  };
+
+  const handleGenerateQr = async () => {
+    setQrModalOpen(true);
+    setQrLoading(true);
+    setQrError('');
+    setQrData('');
+    try {
+      const res = await fetch('http://localhost:8080/api/user/qr-code', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setQrData(data.qrCode);
+      } else {
+        setQrError('Failed to generate QR Code. Please try again.');
+      }
+    } catch (err) {
+      setQrError('Network error while generating QR code.');
+    } finally {
+      setQrLoading(false);
     }
   };
 
@@ -272,8 +315,6 @@ export default function Dashboard() {
     { id: 'dashboard', label: 'Dashboard', icon: Wallet, section: 'dashboard-top' },
     { id: 'credit', label: 'Credit Score', icon: History, section: 'credit-section' },
     { id: 'analytics', label: 'Financial Overview', icon: TrendingUp, section: 'analytics-section' },
-    { id: 'bills', label: 'Expenses & Savings', icon: CreditCard, route: '/supporting-documents' },
-    { id: 'docs', label: 'Documents', icon: FileText, route: '/supporting-documents' },
     { id: 'insights', label: 'AI Insights', icon: Lightbulb, section: 'insights-section' }
   ];
 
@@ -426,7 +467,7 @@ export default function Dashboard() {
             </button>
             <div className="text-left">
               <h2 className="text-sm lg:text-base font-bold text-white leading-tight">Welcome back, {user?.fullName || 'Arjun Sharma'} 👋</h2>
-              <p className="text-[9px] text-white/40 mt-0.5">Here's your alternative financial overview for July 2025</p>
+              <p className="text-[9px] text-white/40 mt-0.5">Here's your alternative financial overview for {selectedMonth} {selectedYear}</p>
             </div>
           </div>
 
@@ -447,10 +488,27 @@ export default function Dashboard() {
               <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-[#D1495B]" />
             </button>
 
-            {/* Date filter */}
-            <div className="hidden sm:flex items-center gap-2 bg-white/5 border border-white/5 px-3 py-1.5 rounded-lg text-[10px] font-semibold text-white/70">
-              <Calendar className="h-3.5 w-3.5 text-[#59CFFF]" />
-              <span>01 Jul 2025 - 31 Jul 2025</span>
+            {/* Month & Year Select Dropdowns */}
+            <div className="hidden sm:flex items-center gap-2 bg-white/5 border border-white/5 px-2.5 py-1 rounded-lg text-[10px] font-semibold text-white/70">
+              <Calendar className="h-3.5 w-3.5 text-[#59CFFF] shrink-0" />
+              <select
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                className="bg-transparent text-white/90 border-none outline-none cursor-pointer text-[10px] font-semibold pr-1.5"
+              >
+                {["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"].map(m => (
+                  <option key={m} value={m} className="bg-[#030E21]">{m}</option>
+                ))}
+              </select>
+              <select
+                value={selectedYear}
+                onChange={(e) => setSelectedYear(e.target.value)}
+                className="bg-transparent text-white/90 border-none outline-none cursor-pointer text-[10px] font-semibold"
+              >
+                {["2024", "2025", "2026", "2027"].map(y => (
+                  <option key={y} value={y} className="bg-[#030E21]">{y}</option>
+                ))}
+              </select>
             </div>
 
             {/* User Profile initials */}
@@ -477,10 +535,10 @@ export default function Dashboard() {
             </div>
             <div className="flex items-center gap-3 w-full sm:w-auto">
               <button
-                onClick={() => navigate('/supporting-documents')}
-                className="btn-outline-premium px-4.5 py-2.5 rounded-lg text-xs font-bold w-full sm:w-auto text-center"
+                onClick={handleGenerateQr}
+                className="bg-white/5 hover:bg-white/10 border border-white/10 px-5 py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-colors w-full sm:w-auto"
               >
-                Upload Supporting Bills
+                <QrCode className="h-4 w-4 text-[#59CFFF]" /> Share Profile
               </button>
               <button
                 onClick={() => navigate('/check-eligibility')}
@@ -618,32 +676,44 @@ export default function Dashboard() {
               {/* 5. Middle Charts & Recent Bills */}
               <div className="grid grid-cols-1 lg:grid-cols-5 gap-6" id="analytics-section">
                 
-                {/* Area/Bar Chart - Income vs Expenses */}
+                {/* Historical 12-Month Comparison Chart */}
                 <div className="glass-card glass-card-hover p-6 rounded-xl text-left lg:col-span-3">
                   <div className="flex justify-between items-center border-b border-white/5 pb-3 mb-5">
                     <div>
-                      <h3 className="text-xs font-bold uppercase tracking-wider text-white/80">Cash Flow Distribution</h3>
-                      <p className="text-[9px] text-white/40 mt-0.5">Comparing monthly income structures and expenses</p>
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-white/80">12-Month Financial Trend</h3>
+                      <p className="text-[9px] text-white/40 mt-0.5">Click any month to load that month's details</p>
+                    </div>
+                    <div className="flex items-center gap-3 text-[9px] text-white/50">
+                      <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[#59CFFF]" /> Income</span>
+                      <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[#D1495B]" /> Expenses</span>
+                      <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[#34C759]" /> Savings</span>
                     </div>
                   </div>
                   
                   <div className="h-64">
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={barChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }} barSize={38}>
+                      <AreaChart 
+                        data={historicalChartData} 
+                        onClick={handleChartClick}
+                        margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                      >
                         <defs>
                           <linearGradient id="incomeGrad" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#59CFFF" stopOpacity={0.8}/>
-                            <stop offset="95%" stopColor="#59CFFF" stopOpacity={0.15}/>
+                            <stop offset="5%" stopColor="#59CFFF" stopOpacity={0.4}/>
+                            <stop offset="95%" stopColor="#59CFFF" stopOpacity={0.0}/>
                           </linearGradient>
                           <linearGradient id="expenseGrad" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#D1495B" stopOpacity={0.8}/>
-                            <stop offset="95%" stopColor="#D1495B" stopOpacity={0.15}/>
+                            <stop offset="5%" stopColor="#D1495B" stopOpacity={0.4}/>
+                            <stop offset="95%" stopColor="#D1495B" stopOpacity={0.0}/>
+                          </linearGradient>
+                          <linearGradient id="savingsGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#34C759" stopOpacity={0.4}/>
+                            <stop offset="95%" stopColor="#34C759" stopOpacity={0.0}/>
                           </linearGradient>
                         </defs>
                         <XAxis dataKey="name" stroke="rgba(255,255,255,0.3)" fontSize={10} tickLine={false} />
                         <YAxis stroke="rgba(255,255,255,0.3)" fontSize={10} tickLine={false} />
                         <Tooltip 
-                          cursor={{ fill: 'rgba(89, 207, 255, 0.04)', radius: [6, 6, 0, 0] }}
                           contentStyle={{ 
                             backgroundColor: 'rgba(3, 14, 33, 0.85)', 
                             borderColor: 'rgba(255, 255, 255, 0.08)', 
@@ -651,72 +721,63 @@ export default function Dashboard() {
                             backdropFilter: 'blur(10px)'
                           }}
                           labelStyle={{ color: '#fff', fontWeight: 'bold', fontSize: 11 }}
-                          itemStyle={{ color: '#59CFFF', fontSize: 10 }}
+                          itemStyle={{ fontSize: 10 }}
                         />
-                        <Bar dataKey="Inflow" radius={[6, 6, 0, 0]} />
-                        <Bar dataKey="Outflow" radius={[6, 6, 0, 0]} />
-                      </BarChart>
+                        <Area type="monotone" dataKey="Income" stroke="#59CFFF" fillOpacity={1} fill="url(#incomeGrad)" strokeWidth={2} />
+                        <Area type="monotone" dataKey="Expenses" stroke="#D1495B" fillOpacity={1} fill="url(#expenseGrad)" strokeWidth={2} />
+                        <Area type="monotone" dataKey="Savings" stroke="#34C759" fillOpacity={1} fill="url(#savingsGrad)" strokeWidth={2} />
+                      </AreaChart>
                     </ResponsiveContainer>
                   </div>
                 </div>
 
-                {/* Top Expenses & Savings */}
+                {/* Monthly Allocations Card */}
                 <div className="glass-card glass-card-hover p-6 rounded-xl text-left lg:col-span-2 flex flex-col justify-between">
                   <div className="flex justify-between items-center border-b border-white/5 pb-3 mb-4">
                     <div>
-                      <h3 className="text-xs font-bold uppercase tracking-wider text-white/80">Top Expenses & Savings</h3>
-                      <p className="text-[9px] text-white/40 mt-0.5">Highest monthly allocations</p>
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-white/80">Monthly Allocations</h3>
+                      <p className="text-[9px] text-white/40 mt-0.5">Summary of monthly income allocations</p>
                     </div>
-                    <button 
-                      onClick={() => navigate('/supporting-documents')}
-                      className="text-[9px] font-bold text-[#59CFFF] hover:text-[#7ce0ff]"
-                    >
-                      Manage
-                    </button>
                   </div>
 
-                  {localFinancials.expenses.length === 0 && localFinancials.savings.length === 0 ? (
+                  {!latestAssessment ? (
                     <div className="flex-1 flex flex-col items-center justify-center text-center p-6 text-white/30 space-y-1">
                       <DollarSign className="h-8 w-8 opacity-25" />
-                      <p className="text-xs">No financial records added yet</p>
+                      <p className="text-xs">No allocations found for this month</p>
                     </div>
                   ) : (
                     <div className="space-y-3 flex-grow overflow-y-auto pr-1 no-scrollbar">
-                      {/* Top 2 Expenses */}
-                      {localFinancials.expenses.sort((a, b) => b.amount - a.amount).slice(0, 2).map((item, idx) => (
-                        <div key={`exp-${idx}`} className="flex items-center justify-between p-3.5 rounded-lg bg-[#D1495B]/5 border border-[#D1495B]/10 text-xs">
-                          <div className="flex items-center gap-2.5">
-                            <div className="h-8 w-8 rounded-lg bg-[#D1495B]/10 flex items-center justify-center text-[#D1495B] shrink-0">
-                              <DollarSign className="h-4 w-4" />
-                            </div>
-                            <div>
-                              <div className="font-bold text-white">{item.title}</div>
-                              <div className="text-[9px] text-[#D1495B] font-mono mt-0.5">Expense</div>
-                            </div>
+                      {/* Monthly Expenses */}
+                      <div className="flex items-center justify-between p-3.5 rounded-lg bg-[#D1495B]/5 border border-[#D1495B]/10 text-xs">
+                        <div className="flex items-center gap-2.5">
+                          <div className="h-8 w-8 rounded-lg bg-[#D1495B]/10 flex items-center justify-center text-[#D1495B] shrink-0">
+                            <DollarSign className="h-4 w-4" />
                           </div>
-                          <div className="text-right font-bold text-white shrink-0">
-                            ₹{item.amount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                          <div>
+                            <div className="font-bold text-white">Monthly Expenses</div>
+                            <div className="text-[9px] text-[#D1495B] font-mono mt-0.5">Expense</div>
                           </div>
                         </div>
-                      ))}
+                        <div className="text-right font-bold text-white shrink-0">
+                          ₹{latestAssessment.monthlyExpenses.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                        </div>
+                      </div>
                       
-                      {/* Top 2 Savings */}
-                      {localFinancials.savings.sort((a, b) => b.amount - a.amount).slice(0, 2).map((item, idx) => (
-                        <div key={`sav-${idx}`} className="flex items-center justify-between p-3.5 rounded-lg bg-[#34C759]/5 border border-[#34C759]/10 text-xs">
-                          <div className="flex items-center gap-2.5">
-                            <div className="h-8 w-8 rounded-lg bg-[#34C759]/10 flex items-center justify-center text-[#34C759] shrink-0">
-                              <Wallet className="h-4 w-4" />
-                            </div>
-                            <div>
-                              <div className="font-bold text-white">{item.title}</div>
-                              <div className="text-[9px] text-[#34C759] font-mono mt-0.5">Saving</div>
-                            </div>
+                      {/* Monthly Savings */}
+                      <div className="flex items-center justify-between p-3.5 rounded-lg bg-[#34C759]/5 border border-[#34C759]/10 text-xs">
+                        <div className="flex items-center gap-2.5">
+                          <div className="h-8 w-8 rounded-lg bg-[#34C759]/10 flex items-center justify-center text-[#34C759] shrink-0">
+                            <Wallet className="h-4 w-4" />
                           </div>
-                          <div className="text-right font-bold text-white shrink-0">
-                            ₹{item.amount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                          <div>
+                            <div className="font-bold text-white">Monthly Savings</div>
+                            <div className="text-[9px] text-[#34C759] font-mono mt-0.5">Saving</div>
                           </div>
                         </div>
-                      ))}
+                        <div className="text-right font-bold text-white shrink-0">
+                          ₹{latestAssessment.monthlySavings.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -763,7 +824,7 @@ export default function Dashboard() {
                 </div>
 
                 {/* AI Financial Insights Center */}
-                <div className="glass-card glass-card-hover p-6 rounded-xl text-left space-y-5">
+                <div className="glass-card glass-card-hover p-6 rounded-xl text-left space-y-5 lg:col-span-2">
                   <div>
                     <h3 className="text-xs font-bold uppercase tracking-wider text-[#59CFFF]">AI Financial Insights</h3>
                     <p className="text-[9px] text-white/40 mt-0.5">Gemini processed coaching profiles</p>
@@ -831,40 +892,7 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                {/* Recent Documents Section */}
-                <div className="glass-card glass-card-hover p-6 rounded-xl text-left space-y-4">
-                  <div className="flex justify-between items-center border-b border-white/5 pb-3">
-                    <div>
-                      <h3 className="text-xs font-bold uppercase tracking-wider text-white/80">Recent Documents</h3>
-                      <p className="text-[9px] text-white/40 mt-0.5">Secure upload files logs</p>
-                    </div>
-                    <button 
-                      onClick={() => navigate('/supporting-documents')}
-                      className="text-[9px] font-bold text-[#59CFFF] hover:text-[#7ce0ff]"
-                    >
-                      View All
-                    </button>
-                  </div>
 
-                  {bills.length === 0 ? (
-                    <div className="text-center py-12 text-xs text-white/30 italic">No files uploaded.</div>
-                  ) : (
-                    <div className="space-y-2.5 max-h-[310px] overflow-y-auto pr-1 no-scrollbar">
-                      {bills.slice(0, 5).map((bill) => (
-                        <div key={bill.id} className="p-3 rounded-lg bg-white/[0.02] border border-white/5 flex items-center justify-between text-xs">
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <FileText className="h-4.5 w-4.5 text-[#59CFFF] shrink-0" />
-                            <div className="min-w-0">
-                              <div className="font-bold text-white truncate">{bill.fileName}</div>
-                              <div className="text-[8px] text-white/40 mt-0.5">Uploaded {bill.uploadDate ? bill.uploadDate.split('T')[0] : 'recent'}</div>
-                            </div>
-                          </div>
-                          <span className="text-[8px] font-semibold text-emerald-400 uppercase tracking-wide shrink-0 pl-3">Verified</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
 
               </div>
 
@@ -1073,6 +1101,50 @@ export default function Dashboard() {
                 {goalLoading ? 'Calculating Goal...' : 'Calculate & Save'}
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* QR Code Modal */}
+      {qrModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#030E21]/90 backdrop-blur-md">
+          <div className="w-full max-w-sm glass-card rounded-2xl p-8 border-white/10 flex flex-col items-center relative text-center">
+            <button 
+              onClick={() => setQrModalOpen(false)}
+              className="absolute top-4 right-4 text-white/40 hover:text-white"
+            >
+              <X className="h-5 w-5" />
+            </button>
+
+            <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-[#59CFFF] to-[#102C57] flex items-center justify-center mb-4 border border-white/10">
+              <QrCode className="h-6 w-6 text-[#59CFFF]" />
+            </div>
+            
+            <h3 className="font-bold text-white text-lg mb-1">Profile Access QR</h3>
+            <p className="text-[11px] text-white/50 mb-6 px-4">
+              Scan this QR code from an authorized bank terminal to securely view your alternative credit profile.
+            </p>
+
+            {qrLoading ? (
+              <div className="h-48 w-48 border border-white/10 rounded-xl flex items-center justify-center bg-white/5">
+                <div className="h-8 w-8 rounded-full border-2 border-white/10 border-t-[#59CFFF] animate-spin" />
+              </div>
+            ) : qrError ? (
+              <div className="h-48 w-48 border border-[#D1495B]/30 rounded-xl flex items-center justify-center bg-[#D1495B]/10 text-[#D1495B] text-xs text-center p-4">
+                {qrError}
+              </div>
+            ) : qrData ? (
+              <div className="bg-white p-3 rounded-xl shadow-[0_0_30px_rgba(89,207,255,0.2)]">
+                <img src={qrData} alt="Profile QR Code" className="h-48 w-48" />
+              </div>
+            ) : null}
+
+            {!qrLoading && !qrError && qrData && (
+              <div className="mt-6 flex items-center gap-1.5 text-[10px] text-emerald-400 font-bold bg-emerald-400/10 px-3 py-1.5 rounded-full">
+                <div className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                Valid for 5 minutes
+              </div>
+            )}
           </div>
         </div>
       )}

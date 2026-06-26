@@ -7,16 +7,11 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(
-    name = "loan_assessments",
-    uniqueConstraints = {
-        @UniqueConstraint(columnNames = {"userId", "month", "year"})
-    }
-)
+@Table(name = "qr_verification_tokens")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class LoanAssessment {
+public class QrVerificationToken {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -25,14 +20,12 @@ public class LoanAssessment {
     @Column(nullable = false)
     private Long userId;
 
-    @Column(nullable = false)
-    private String month;
+    @Column(nullable = false, unique = true)
+    private String token;
 
     @Column(nullable = false)
-    private Integer year;
+    private LocalDateTime expiresAt;
 
-    private Boolean eligibility;
-    private Double loanAmount;
-    private String riskCategory;
-    private LocalDateTime createdAt = LocalDateTime.now();
+    @Column(nullable = false)
+    private boolean isUsed = false;
 }

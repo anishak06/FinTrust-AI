@@ -7,7 +7,12 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "ai_recommendations")
+@Table(
+    name = "ai_recommendations",
+    uniqueConstraints = {
+        @UniqueConstraint(columnNames = {"userId", "month", "year"})
+    }
+)
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -19,6 +24,12 @@ public class AiRecommendation {
 
     @Column(nullable = false)
     private Long userId;
+
+    @Column(nullable = false)
+    private String month;
+
+    @Column(nullable = false)
+    private Integer year;
 
     @Column(columnDefinition = "TEXT")
     private String geminiInsights;

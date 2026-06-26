@@ -9,6 +9,12 @@ export default function DataCollection() {
   const { token, logout } = useAuth();
   const navigate = useNavigate();
 
+  // Helper to get current Month (Title case) and Year
+  const currentDate = new Date();
+  const currentMonthName = currentDate.toLocaleString('default', { month: 'long' });
+  const titleCaseMonth = currentMonthName.charAt(0).toUpperCase() + currentMonthName.slice(1).toLowerCase();
+  const currentYearNum = currentDate.getFullYear();
+
   // Inputs
   const [monthlyIncome, setMonthlyIncome] = useState('');
   const [monthlyExpenses, setMonthlyExpenses] = useState('');
@@ -18,6 +24,8 @@ export default function DataCollection() {
   const [employmentType, setEmploymentType] = useState('SALARIED');
   const [occupation, setOccupation] = useState('');
   const [existingLoans, setExistingLoans] = useState('');
+  const [month, setMonth] = useState(titleCaseMonth);
+  const [year, setYear] = useState(currentYearNum.toString());
 
   // UI state
   const [validationError, setValidationError] = useState('');
@@ -116,7 +124,9 @@ export default function DataCollection() {
           upiTransactionFrequency: upi,
           employmentType,
           occupation,
-          existingLoans: loans
+          existingLoans: loans,
+          month,
+          year: parseInt(year)
         })
       });
 
@@ -247,55 +257,67 @@ export default function DataCollection() {
               />
             </div>
 
+            {/* Assessment Month */}
+            <div className="space-y-1.5 text-left">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-white/40 flex items-center gap-1.5">
+                Assessment Month
+              </label>
+              <select
+                value={month}
+                onChange={(e) => setMonth(e.target.value)}
+                className="w-full px-4 py-3 rounded-lg glass-input text-xs bg-[#030E21] appearance-none cursor-pointer"
+              >
+                {["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"].map(m => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Assessment Year */}
+            <div className="space-y-1.5 text-left">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-white/40 flex items-center gap-1.5">
+                Assessment Year
+              </label>
+              <select
+                value={year}
+                onChange={(e) => setYear(e.target.value)}
+                className="w-full px-4 py-3 rounded-lg glass-input text-xs bg-[#030E21] appearance-none cursor-pointer"
+              >
+                {["2024", "2025", "2026", "2027"].map(y => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+            </div>
+
             {/* Expenses */}
             <div className="space-y-1.5 text-left">
-              <div className="flex justify-between items-center">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-white/40 flex items-center gap-1.5">
-                  <CreditCard className="h-3.5 w-3.5 text-[#59CFFF]" /> Monthly Expenses (₹)
-                </label>
-                <button 
-                  type="button" 
-                  onClick={() => navigate('/supporting-documents')} 
-                  className="text-[9px] text-[#59CFFF] hover:underline font-bold"
-                >
-                  Edit Details
-                </button>
-              </div>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-white/40 flex items-center gap-1.5">
+                <CreditCard className="h-3.5 w-3.5 text-[#59CFFF]" /> Monthly Expenses (₹)
+              </label>
               <input
                 type="number"
                 value={monthlyExpenses}
                 onChange={(e) => setMonthlyExpenses(e.target.value)}
                 placeholder="e.g. 20000"
-                className="w-full px-4 py-3 rounded-lg glass-input text-xs bg-white/5 opacity-70 cursor-not-allowed"
+                className="w-full px-4 py-3 rounded-lg glass-input text-xs"
                 required
                 min="0"
-                disabled
               />
             </div>
 
             {/* Savings */}
             <div className="space-y-1.5 text-left">
-              <div className="flex justify-between items-center">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-white/40 flex items-center gap-1.5">
-                  <ClipboardList className="h-3.5 w-3.5 text-[#59CFFF]" /> Monthly Savings (₹)
-                </label>
-                <button 
-                  type="button" 
-                  onClick={() => navigate('/supporting-documents')} 
-                  className="text-[9px] text-[#59CFFF] hover:underline font-bold"
-                >
-                  Edit Details
-                </button>
-              </div>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-white/40 flex items-center gap-1.5">
+                <ClipboardList className="h-3.5 w-3.5 text-[#59CFFF]" /> Monthly Savings (₹)
+              </label>
               <input
                 type="number"
                 value={monthlySavings}
                 onChange={(e) => setMonthlySavings(e.target.value)}
                 placeholder="e.g. 15000"
-                className="w-full px-4 py-3 rounded-lg glass-input text-xs bg-white/5 opacity-70 cursor-not-allowed"
+                className="w-full px-4 py-3 rounded-lg glass-input text-xs"
                 required
                 min="0"
-                disabled
               />
             </div>
 

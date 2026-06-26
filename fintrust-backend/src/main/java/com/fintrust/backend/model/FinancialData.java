@@ -7,7 +7,12 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "financial_data")
+@Table(
+    name = "financial_data",
+    uniqueConstraints = {
+        @UniqueConstraint(columnNames = {"userId", "month", "year"})
+    }
+)
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -19,6 +24,12 @@ public class FinancialData {
 
     @Column(nullable = false)
     private Long userId;
+
+    @Column(nullable = false)
+    private String month;
+
+    @Column(nullable = false)
+    private Integer year;
 
     private Double income;
     private Double savings;

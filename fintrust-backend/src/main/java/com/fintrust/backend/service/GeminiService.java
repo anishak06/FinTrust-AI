@@ -45,28 +45,28 @@ public class GeminiService {
      */
     public AiRecommendation generateFinancialInsights(
             Long userId, int score, double income, double savings, double expenses, double consistency, int transactions,
-            boolean loanEligible, double suggestedLoanAmount) {
+            boolean loanEligible, double suggestedLoanAmount, String month, Integer year) {
 
         if (!StringUtils.hasText(geminiKey)) {
             logger.info("Gemini API key is not configured. Falling back to local rule-based insights engine.");
-            return calculateLocalInsights(userId, score, income, savings, expenses, consistency, transactions, loanEligible, suggestedLoanAmount);
+            return calculateLocalInsights(userId, score, income, savings, expenses, consistency, transactions, loanEligible, suggestedLoanAmount, month, year);
         }
 
         try {
-            String prompt = buildInsightsPrompt(score, income, savings, expenses, consistency, transactions, loanEligible, suggestedLoanAmount);
+            String prompt = buildInsightsPrompt(score, income, savings, expenses, consistency, transactions, loanEligible, suggestedLoanAmount, month, year);
             String response = callGeminiApi(prompt);
-            return parseInsightsResponse(userId, response);
+            return parseInsightsResponse(userId, response, month, year);
         } catch (Exception e) {
             logger.error("Error generating insights via Gemini. Falling back to local engine.", e);
-            return calculateLocalInsights(userId, score, income, savings, expenses, consistency, transactions, loanEligible, suggestedLoanAmount);
+            return calculateLocalInsights(userId, score, income, savings, expenses, consistency, transactions, loanEligible, suggestedLoanAmount, month, year);
         }
     }
 
     private String buildInsightsPrompt(
             int score, double income, double savings, double expenses, double consistency, int transactions,
-            boolean loanEligible, double suggestedLoanAmount) {
+            boolean loanEligible, double suggestedLoanAmount, String month, Integer year) {
         
-        return "You are FinTrust AI, a modern financial intelligence engine. Generate intelligent, data-driven financial insights based on this anonymized borrower profile:\n" +
+        return "You are a friendly financial coach. Generate plain, simple, and encouraging financial insights for this person for " + month + " " + year + ":\n" +
                 "- Credit Score: " + score + " / 900\n" +
                 "- Monthly Income: \u20B9" + income + "\n" +
                 "- Monthly Savings: \u20B9" + savings + "\n" +
@@ -74,28 +74,28 @@ public class GeminiService {
                 "- Bill Payment Consistency: " + consistency + "%\n" +
                 "- UPI Digital Transactions: " + transactions + " transactions/month\n" +
                 "- Loan Eligibility Status: " + (loanEligible ? "ELIGIBLE" : "NOT ELIGIBLE") + "\n" +
-                "- Maximum Suggested Loan Limit: \u20B9" + suggestedLoanAmount + "\n\n" +
+                "- Suggested Loan Limit: \u20B9" + suggestedLoanAmount + "\n\n" +
+                "Do NOT use complex financial jargon like 'liquidity buffers' or 'underwriting'. Use plain English that anyone can understand.\n" +
                 "Evaluate and return exactly a JSON object (no markdown, no ```json, no extra text, just raw JSON) with the following structure:\n" +
                 "{\n" +
-                "  \"geminiInsights\": \"General analytical summary of their financial health, savings buffers, and cash flow stability...\",\n" +
+                "  \"geminiInsights\": \"A friendly summary of how they are doing with their money this month.\",\n" +
                 "  \"strengths\": [\n" +
-                "     \"\u2705 First key strength...\",\n" +
-                "     \"\u2705 Second key strength...\"\n" +
+                "     \"\u2705 First thing they are doing well...\",\n" +
+                "     \"\u2705 Second thing they are doing well...\"\n" +
                 "  ], // List what they are doing well based on data\n" +
                 "  \"weaknesses\": [\n" +
-                "     \"\u26A0 First warning area...\",\n" +
-                "     \"\u26A0 Second warning area...\"\n" +
+                "     \"\u26A0 First thing to watch out for...\",\n" +
+                "     \"\u26A0 Second thing to watch out for...\"\n" +
                 "  ], // List areas to watch out for based on data\n" +
-                "  \"loanEligibilityExplanation\": \"Explain WHY the user received their specific eligibility status and suggested loan limit based on the underwriting parameters...\",\n" +
+                "  \"loanEligibilityExplanation\": \"Explain simply WHY they can or cannot get a loan right now, based on their score and savings.\",\n" +
                 "  \"recommendations\": [\n" +
-                "     \"Increase monthly savings to \u20B9\" + (estimated required savings target) + \" to strengthen buffers.\",\n" +
-                "     \"Reduce discretionary spending by 10% to lower expenses under 70% of income.\",\n" +
-                "     \"Maintain utility payment consistency on time to secure consistency score...\"\n" +
-                "  ] // List personalized, data-driven recommendations with actual numbers. Do not output generic advice.\n" +
+                "     \"Try to save a bit more next month.\",\n" +
+                "     \"Keep paying bills on time!\"\n" +
+                "  ] // List personalized, easy-to-follow recommendations.\n" +
                 "}";
     }
 
-    private AiRecommendation parseInsightsResponse(Long userId, String responseStr) throws Exception {
+    private AiRecommendation parseInsightsResponse(Long userId, String responseStr, String month, Integer year) throws Exception {
         JsonNode root = objectMapper.readTree(responseStr);
         String jsonText = root.path("candidates").get(0).path("content").path("parts").get(0).path("text").asText();
         
@@ -105,14 +105,15 @@ public class GeminiService {
 
         JsonNode result = objectMapper.readTree(jsonText);
 
-        AiRecommendation rec = new AiRecommendation();
+        AiRecommendation rec = aiRecommendationRepository.findByUserIdAndMonthAndYear(userId, month, year).orElse(new AiRecommendation());
         rec.setUserId(userId);
-        rec.setGeminiInsights(result.path("geminiInsights").asText("Your cash flow and savings buffers display positive progress."));
+        rec.setMonth(month);
+        rec.setYear(year);
+        rec.setGeminiInsights(result.path("geminiInsights").asText("Your cash flow and savings look good."));
         rec.setStrengths(objectMapper.writeValueAsString(result.path("strengths")));
         rec.setWeaknesses(objectMapper.writeValueAsString(result.path("weaknesses")));
         rec.setRecommendations(objectMapper.writeValueAsString(result.path("recommendations")));
 
-        // Concat explanation into insights or store it in DB (we can concat it into geminiInsights to display on dashboard!)
         String rawInsights = result.path("geminiInsights").asText();
         String explanation = result.path("loanEligibilityExplanation").asText();
         rec.setGeminiInsights(rawInsights + "\n\n[Underwriting Decision Details]: " + explanation);
@@ -120,102 +121,16 @@ public class GeminiService {
         return aiRecommendationRepository.save(rec);
     }
 
-    /**
-     * Extracts bill metadata (type, amount, due date, merchant) from uploaded bill file bytes.
-     */
-    public Map<String, Object> extractBillMetadata(byte[] fileBytes, String mimeType, String fileName) {
-        if (!StringUtils.hasText(geminiKey)) {
-            logger.info("Gemini API key is not configured. Falling back to local file parsing simulation.");
-            return calculateLocalBillMetadata(fileName);
-        }
 
-        try {
-            String base64Data = Base64.getEncoder().encodeToString(fileBytes);
-            String prompt = "You are an AI bill reader. Analyze this document and extract its billing metadata.\n" +
-                    "Supported Bill Types: ELECTRICITY, WATER, INTERNET, MOBILE, GAS, RENT, BANK_STATEMENT.\n" +
-                    "Return exactly a JSON object (no markdown, no ```json, no extra text, just raw JSON) with the following structure:\n" +
-                    "{\n" +
-                    "  \"billType\": \"ELECTRICITY\",\n" +
-                    "  \"merchantName\": \"Merchant Name (e.g. Tata Power)\",\n" +
-                    "  \"amount\": 1500.00, // double\n" +
-                    "  \"dueDate\": \"YYYY-MM-DD\", // Due date found on bill\n" +
-                    "  \"paymentDate\": \"YYYY-MM-DD\" // Payment date if paid (or null/empty if unpaid)\n" +
-                    "}";
-
-            String url = geminiUrl + "?key=" + geminiKey;
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-
-            ObjectNode requestBody = objectMapper.createObjectNode();
-            ArrayNode contents = requestBody.putArray("contents");
-            ObjectNode content = contents.addObject();
-            ArrayNode parts = content.putArray("parts");
-            parts.addObject().put("text", prompt);
-
-            // Add base64 document bytes directly to parts
-            ObjectNode inlinePart = parts.addObject();
-            ObjectNode inlineData = inlinePart.putObject("inlineData");
-            inlineData.put("mimeType", mimeType);
-            inlineData.put("data", base64Data);
-
-            ObjectNode generationConfig = requestBody.putObject("generationConfig");
-            generationConfig.put("responseMimeType", "application/json");
-
-            HttpEntity<String> entity = new HttpEntity<>(objectMapper.writeValueAsString(requestBody), headers);
-            ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);
-
-            JsonNode root = objectMapper.readTree(response.getBody());
-            String jsonText = root.path("candidates").get(0).path("content").path("parts").get(0).path("text").asText();
-            
-            if (jsonText.contains("```")) {
-                jsonText = jsonText.replaceAll("```json|```", "").trim();
-            }
-
-            JsonNode result = objectMapper.readTree(jsonText);
-            Map<String, Object> meta = new HashMap<>();
-            meta.put("billType", result.path("billType").asText("ELECTRICITY"));
-            meta.put("merchantName", result.path("merchantName").asText("Utility Corp"));
-            meta.put("amount", result.path("amount").asDouble(1000.0));
-            meta.put("dueDate", result.path("dueDate").asText(LocalDate.now().plusDays(10).toString()));
-            meta.put("paymentDate", result.path("paymentDate").isNull() ? null : result.path("paymentDate").asText());
-
-            return meta;
-
-        } catch (Exception e) {
-            logger.error("Error extracting bill metadata via Gemini. Falling back to local file parsing simulation.", e);
-            return calculateLocalBillMetadata(fileName);
-        }
-    }
-
-    private String callGeminiApi(String prompt) throws Exception {
-        String url = geminiUrl + "?key=" + geminiKey;
-
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-
-        // Build the request body for Gemini API
-        ObjectNode requestBody = objectMapper.createObjectNode();
-        ArrayNode contents = requestBody.putArray("contents");
-        ObjectNode content = contents.addObject();
-        ArrayNode parts = content.putArray("parts");
-        parts.addObject().put("text", prompt);
-
-        // Configure generationConfig for JSON response
-        ObjectNode generationConfig = requestBody.putObject("generationConfig");
-        generationConfig.put("responseMimeType", "application/json");
-
-        HttpEntity<String> entity = new HttpEntity<>(objectMapper.writeValueAsString(requestBody), headers);
-        ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);
-
-        return response.getBody();
-    }
 
     private AiRecommendation calculateLocalInsights(
             Long userId, int score, double income, double savings, double expenses, double consistency, int transactions,
-            boolean loanEligible, double suggestedLoanAmount) {
+            boolean loanEligible, double suggestedLoanAmount, String month, Integer year) {
 
-        AiRecommendation rec = new AiRecommendation();
+        AiRecommendation rec = aiRecommendationRepository.findByUserIdAndMonthAndYear(userId, month, year).orElse(new AiRecommendation());
         rec.setUserId(userId);
+        rec.setMonth(month);
+        rec.setYear(year);
         
         // Formulate Strengths
         ArrayNode strengths = objectMapper.createArrayNode();
@@ -225,46 +140,45 @@ public class GeminiService {
             strengths.add("\u2705 You maintain a healthy savings buffer of " + Math.round(savings / income * 100) + "%.");
         }
         if (consistency >= 90) {
-            strengths.add("\u2705 Your utility bill payment history is excellent.");
+            strengths.add("\u2705 Your bill payment history is excellent.");
         }
         if (expenses / income < 0.70) {
-            strengths.add("\u2705 Your monthly expense management is highly conservative.");
+            strengths.add("\u2705 You are great at keeping expenses low.");
         }
 
         if (strengths.size() == 0) {
-            strengths.add("\u2705 Basic baseline financial accounts registered.");
+            strengths.add("\u2705 We have received your financial information.");
         }
 
         // Formulate Weaknesses
         ArrayNode weaknesses = objectMapper.createArrayNode();
         if (expenses / income >= 0.8) {
-            weaknesses.add("\u26A0 Discretionary spending is higher than recommended.");
+            weaknesses.add("\u26A0 Your spending is a bit high this month.");
         }
         if (savings / income < 0.15) {
-            weaknesses.add("\u26A0 Monthly savings rate is thin, leaving you vulnerable to cashflow shocks.");
+            weaknesses.add("\u26A0 Saving a little more could really help in emergencies.");
         }
         if (consistency < 75) {
-            weaknesses.add("\u26A0 Utility payment delays are negatively impacting your consistency index.");
+            weaknesses.add("\u26A0 Try to pay your bills on time to boost your score.");
         }
         if (weaknesses.size() == 0) {
-            weaknesses.add("\u26A0 No high-priority warnings detected on your profile.");
+            weaknesses.add("\u26A0 No major worries right now, keep it up!");
         }
 
         // Recommendations
         ArrayNode recs = objectMapper.createArrayNode();
         double targetSavings = Math.round(income * 0.30);
-        recs.add("Increase monthly savings to \u20B9" + targetSavings + " to maintain a stable 30% savings ratio.");
-        recs.add("Maintain your utility payment consistency on time.");
+        recs.add("Aim to save around \u20B9" + targetSavings + " each month.");
+        recs.add("Keep paying those bills on time!");
         if (expenses / income >= 0.7) {
-            recs.add("Reduce discretionary spending by 10% to lower overall expense ratios.");
+            recs.add("See if you can spend a little less on non-essentials.");
         }
-        recs.add("Improve your savings ratio above 30% to maximize underwriting limits.");
+        recs.add("Keep your savings up to get better loan offers in the future.");
 
         // Insights & Explanation
-        String insights = "Based on your credit assessment of " + score + " points, your liquidity buffers are stable.";
-        String explanation = "Underwriting criteria determines " + (loanEligible ? "ELIGIBLE" : "NOT ELIGIBLE") + 
-                " status. " + (loanEligible ? "Your credit score enables access up to " + Math.round(suggestedLoanAmount / savings) + "x your monthly savings rate." 
-                : "A minimum score of 550 is required to unlock alternative underwriting channels.");
+        String insights = "Your credit score is " + score + ". You are doing fairly well!";
+        String explanation = loanEligible ? "You can get a loan because you have a good score and solid savings!" 
+                : "You need a score of 550 to qualify for a loan. Keep saving and paying bills to get there.";
 
         try {
             rec.setStrengths(objectMapper.writeValueAsString(strengths));
@@ -280,55 +194,26 @@ public class GeminiService {
         return aiRecommendationRepository.save(rec);
     }
 
-    private Map<String, Object> calculateLocalBillMetadata(String fileName) {
-        Map<String, Object> meta = new HashMap<>();
-        String name = fileName.toLowerCase();
-        
-        // Set type based on file name
-        if (name.contains("electricity") || name.contains("power") || name.contains("light")) {
-            meta.put("billType", "ELECTRICITY");
-            meta.put("merchantName", "State Electricity Board");
-        } else if (name.contains("water")) {
-            meta.put("billType", "WATER");
-            meta.put("merchantName", "Municipal Water Authority");
-        } else if (name.contains("internet") || name.contains("broadband") || name.contains("wifi")) {
-            meta.put("billType", "INTERNET");
-            meta.put("merchantName", "Broadband Fiber Ltd");
-        } else if (name.contains("mobile") || name.contains("phone") || name.contains("telecom")) {
-            meta.put("billType", "MOBILE");
-            meta.put("merchantName", "Telecom Mobile Network");
-        } else if (name.contains("gas")) {
-            meta.put("billType", "GAS");
-            meta.put("merchantName", "Gas Distribution Corp");
-        } else if (name.contains("rent") || name.contains("receipt")) {
-            meta.put("billType", "RENT");
-            meta.put("merchantName", "Landlord Rental Property");
-        } else {
-            meta.put("billType", "BANK_STATEMENT");
-            meta.put("merchantName", "National Trust Bank");
-        }
+    private String callGeminiApi(String prompt) throws Exception {
+        String url = geminiUrl + "?key=" + geminiKey;
 
-        // Set simulated amounts
-        double amount = Math.round(500.0 + Math.random() * 2500.0);
-        meta.put("amount", amount);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
 
-        // Simulated dates (Paid on time or late based on random chance)
-        LocalDate dueDate = LocalDate.now().minusDays((int) (Math.random() * 15) - 5);
-        meta.put("dueDate", dueDate.toString());
+        ObjectNode requestBody = objectMapper.createObjectNode();
+        ArrayNode contents = requestBody.putArray("contents");
+        ObjectNode content = contents.addObject();
+        ArrayNode parts = content.putArray("parts");
+        parts.addObject().put("text", prompt);
 
-        // 80% chance it is paid, and if paid, 90% chance it is on time
-        if (Math.random() > 0.15) {
-            LocalDate paymentDate;
-            if (Math.random() > 0.10) {
-                paymentDate = dueDate.minusDays((int) (Math.random() * 5)); // paid on time
-            } else {
-                paymentDate = dueDate.plusDays((int) (Math.random() * 5) + 1); // paid late
-            }
-            meta.put("paymentDate", paymentDate.toString());
-        } else {
-            meta.put("paymentDate", null); // Unpaid
-        }
+        ObjectNode generationConfig = requestBody.putObject("generationConfig");
+        generationConfig.put("responseMimeType", "application/json");
 
-        return meta;
+        HttpEntity<String> entity = new HttpEntity<>(objectMapper.writeValueAsString(requestBody), headers);
+        ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);
+
+        return response.getBody();
     }
+
+
 }

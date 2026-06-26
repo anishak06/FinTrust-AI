@@ -7,16 +7,11 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(
-    name = "loan_assessments",
-    uniqueConstraints = {
-        @UniqueConstraint(columnNames = {"userId", "month", "year"})
-    }
-)
+@Table(name = "active_sessions")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class LoanAssessment {
+public class ActiveSession {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -26,13 +21,15 @@ public class LoanAssessment {
     private Long userId;
 
     @Column(nullable = false)
-    private String month;
+    private String deviceId;
+
+    @Column(nullable = false, length = 1000)
+    private String sessionToken;
+
+    private String ipAddress;
+
+    private LocalDateTime lastActive = LocalDateTime.now();
 
     @Column(nullable = false)
-    private Integer year;
-
-    private Boolean eligibility;
-    private Double loanAmount;
-    private String riskCategory;
-    private LocalDateTime createdAt = LocalDateTime.now();
+    private boolean isValid = true;
 }

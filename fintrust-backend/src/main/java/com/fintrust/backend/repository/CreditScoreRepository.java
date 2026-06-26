@@ -10,4 +10,5 @@ import java.util.Optional;
 public interface CreditScoreRepository extends JpaRepository<CreditScore, Long> {
     Optional<CreditScore> findFirstByUserIdOrderByCalculationDateDesc(Long userId);
     List<CreditScore> findByUserIdOrderByCalculationDateDesc(Long userId);
+    Optional<CreditScore> findByUserIdAndMonthAndYear(Long userId, String month, Integer year);
 }

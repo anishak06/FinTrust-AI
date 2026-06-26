@@ -8,4 +8,5 @@ import java.util.Optional;
 @Repository
 public interface FinancialDataRepository extends JpaRepository<FinancialData, Long> {
     Optional<FinancialData> findFirstByUserIdOrderByCreatedAtDesc(Long userId);
+    Optional<FinancialData> findByUserIdAndMonthAndYear(Long userId, String month, Integer year);
 }

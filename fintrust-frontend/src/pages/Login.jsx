@@ -6,7 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import PremiumBackground from '../components/PremiumBackground';
 
 export default function Login() {
-  const { login, forgotPassword } = useAuth();
+  const { login, forceLogin, forgotPassword } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   
@@ -14,6 +14,7 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [conflictModalOpen, setConflictModalOpen] = useState(false);
   
   // Forgot Password modal simulation
   const [forgotModalOpen, setForgotModalOpen] = useState(false);
@@ -38,8 +39,24 @@ export default function Login() {
 
     if (result.success) {
       navigate('/' + (redirect === 'dashboard' ? 'dashboard' : redirect));
+    } else if (result.conflict) {
+      setConflictModalOpen(true);
+      setError(result.error || 'You are logged in on another device.');
+      setLoading(false);
     } else {
       setError(result.error || 'Invalid credentials. Please try again.');
+      setLoading(false);
+    }
+  };
+
+  const handleForceLogin = async () => {
+    setLoading(true);
+    setConflictModalOpen(false);
+    const result = await forceLogin(username, password);
+    if (result.success) {
+      navigate('/' + (redirect === 'dashboard' ? 'dashboard' : redirect));
+    } else {
+      setError(result.error || 'Failed to terminate existing session.');
       setLoading(false);
     }
   };
@@ -209,6 +226,44 @@ export default function Login() {
                 </button>
               </form>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Conflict Modal */}
+      {conflictModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#030E21]/80 backdrop-blur-sm">
+          <div className="w-full max-w-sm glass-card rounded-xl p-6 border-white/10">
+            <div className="flex justify-between items-center border-b border-[#D1495B]/20 pb-3 mb-4">
+              <h3 className="font-bold text-[#D1495B] text-sm flex items-center gap-2">
+                <AlertCircle className="h-4 w-4" /> Active Session Detected
+              </h3>
+              <button 
+                onClick={() => setConflictModalOpen(false)}
+                className="text-white/40 hover:text-white text-lg font-bold"
+              >
+                &times;
+              </button>
+            </div>
+            
+            <p className="text-white/70 text-xs leading-relaxed mb-6">
+              You are currently logged in on another device. Logging in here will terminate your other session. Do you wish to proceed?
+            </p>
+            
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConflictModalOpen(false)}
+                className="flex-1 py-2.5 rounded glass-input text-xs font-bold hover:bg-white/5 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleForceLogin}
+                className="flex-1 py-2.5 rounded bg-[#D1495B] hover:bg-[#D1495B]/90 text-white text-xs font-bold transition-colors"
+              >
+                Confirm Login
+              </button>
+            </div>
           </div>
         </div>
       )}
