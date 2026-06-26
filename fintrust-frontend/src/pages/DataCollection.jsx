@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ClipboardList, DollarSign, CreditCard, Sparkles, HelpCircle, Briefcase, FileText, Check } from 'lucide-react';
+import { ClipboardList, DollarSign, CreditCard, Sparkles, HelpCircle, Briefcase, FileText, Check, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import PremiumBackground from '../components/PremiumBackground';
 
 export default function DataCollection() {
   const { token, logout } = useAuth();
@@ -128,31 +129,32 @@ export default function DataCollection() {
 
   if (isAssessing) {
     return (
-      <div className="min-h-screen bg-[#071B3B] flex flex-col justify-center items-center px-6">
-        <div className="w-full max-w-lg glass-card rounded-2xl p-8 border-white/10 text-center space-y-8 shadow-sky-glow">
+      <div className="min-h-screen bg-[#010308] flex flex-col justify-center items-center px-6 relative">
+        <PremiumBackground />
+        <div className="w-full max-w-md glass-card rounded-2xl p-8 border-white/10 text-center space-y-8 relative z-10">
           <div className="flex flex-col items-center">
             {/* Sparkle Loader */}
             <motion.div
               animate={{ rotate: 360 }}
-              transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
-              className="h-16 w-16 rounded-full border-4 border-[#59CFFF]/10 border-t-[#59CFFF] flex items-center justify-center mb-6"
+              transition={{ repeat: Infinity, duration: 2.5, ease: "linear" }}
+              className="h-12 w-12 rounded-full border-4 border-white/5 border-t-[#59CFFF] flex items-center justify-center mb-6"
             >
-              <Sparkles className="h-6 w-6 text-[#59CFFF]" />
+              <Sparkles className="h-5 w-5 text-[#59CFFF] animate-pulse" />
             </motion.div>
             
-            <h2 className="text-2xl font-bold text-white mb-2">Analyzing Alternative Profile</h2>
-            <p className="text-white/50 text-sm">FinTrust AI is generating your explainable credit score...</p>
+            <h2 className="text-xl font-bold text-white mb-2">Analyzing Alternative Profile</h2>
+            <p className="text-white/40 text-xs">FinTrust AI is generating your explainable scoring ledger...</p>
           </div>
 
           {/* Skeleton Loaders */}
-          <div className="space-y-4 py-4 text-left">
-            <div className="h-4 bg-white/5 rounded w-3/4 animate-pulse" />
-            <div className="h-4 bg-white/5 rounded w-5/6 animate-pulse" />
-            <div className="h-4 bg-white/5 rounded w-2/3 animate-pulse" />
+          <div className="space-y-3 py-2 text-left">
+            <div className="h-3 bg-white/5 rounded w-3/4 animate-pulse" />
+            <div className="h-3 bg-white/5 rounded w-5/6 animate-pulse" />
+            <div className="h-3 bg-white/5 rounded w-2/3 animate-pulse" />
           </div>
 
           {/* Progress Logs */}
-          <div className="bg-navy-deep/60 rounded-xl p-4 border border-white/5 text-left font-mono text-xs text-[#59CFFF]/80 space-y-2.5">
+          <div className="bg-[#030E21]/50 rounded-xl p-4.5 border border-white/5 text-left font-mono text-[10px] text-[#59CFFF] space-y-3">
             {steps.slice(0, assessmentStep + 1).map((step, idx) => (
               <div key={idx} className="flex items-center gap-2">
                 <Check className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
@@ -160,8 +162,8 @@ export default function DataCollection() {
               </div>
             ))}
             {assessmentStep < steps.length - 1 && (
-              <div className="flex items-center gap-2 text-white/40 animate-pulse">
-                <span className="h-1.5 w-1.5 rounded-full bg-white/50 animate-ping" />
+              <div className="flex items-center gap-2 text-white/30 animate-pulse">
+                <span className="h-1 w-1 rounded-full bg-white/50 animate-ping" />
                 <span>{steps[assessmentStep + 1]}</span>
               </div>
             )}
@@ -172,47 +174,49 @@ export default function DataCollection() {
   }
 
   return (
-    <div className="min-h-screen bg-[#071B3B] text-white">
+    <div className="min-h-screen bg-[#010308] text-white relative">
+      <PremiumBackground />
+
       {/* Navigation Header */}
-      <header className="border-b border-white/10 bg-[#071B3B]/60 backdrop-blur-md sticky top-0 z-30">
+      <header className="border-b border-white/5 bg-[#030E21]/30 backdrop-blur-xl sticky top-0 z-30">
         <div className="mx-auto max-w-7xl flex items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate('/dashboard')}>
-            <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-[#59CFFF] to-[#143c75] flex items-center justify-center">
-              <ClipboardList className="h-5 w-5 text-[#071B3B]" />
+          <div className="flex items-center gap-2.5 cursor-pointer" onClick={() => navigate('/dashboard')}>
+            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-[#59CFFF] to-[#102C57] flex items-center justify-center border border-white/10">
+              <ClipboardList className="h-4.5 w-4.5 text-[#59CFFF]" />
             </div>
-            <span className="text-xl font-bold tracking-tight">
+            <span className="text-lg font-bold tracking-tight">
               FinTrust<span className="text-[#59CFFF] font-light">AI</span>
             </span>
           </div>
           <button
             onClick={() => navigate('/dashboard')}
-            className="text-sm text-white/60 hover:text-white transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white/50 hover:text-white transition-colors"
           >
-            Cancel and Return
+            <ArrowLeft className="h-3.5 w-3.5" /> Cancel Assessment
           </button>
         </div>
       </header>
 
-      <main className="mx-auto max-w-3xl px-6 py-12">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">Alternative Credit Assessment</h1>
-          <p className="text-white/60 text-sm">
-            Please enter your behavioral financial profile details below. All fields are parsed by our AI models to build a representative credit scoring report.
+      <main className="mx-auto max-w-2xl px-6 py-12 relative z-10">
+        <div className="mb-8 text-left">
+          <h1 className="text-2xl font-extrabold text-white mb-2">Alternative Credit Assessment</h1>
+          <p className="text-white/40 text-xs leading-relaxed">
+            Please enter your behavioral financial profile details below. All fields feed into our deterministic underwriting algorithm to generate a representative rating.
           </p>
         </div>
 
         {validationError && (
-          <div className="mb-6 p-4 rounded-lg bg-red-500/10 border border-red-500/20 text-red-300 text-sm">
+          <div className="mb-6 p-3.5 rounded-lg bg-[#D1495B]/10 border border-[#D1495B]/20 text-[#D1495B] text-xs text-left">
             {validationError}
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6 glass-card p-6 md:p-8 rounded-2xl border-white/10">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             
             {/* Income */}
-            <div className="space-y-2 text-left">
-              <label className="text-xs font-semibold uppercase tracking-wider text-white/50 flex items-center gap-1.5">
+            <div className="space-y-1.5 text-left">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-white/40 flex items-center gap-1.5">
                 <DollarSign className="h-3.5 w-3.5 text-[#59CFFF]" /> Monthly Income (₹)
               </label>
               <input
@@ -220,15 +224,15 @@ export default function DataCollection() {
                 value={monthlyIncome}
                 onChange={(e) => setMonthlyIncome(e.target.value)}
                 placeholder="e.g. 45000"
-                className="w-full px-4 py-3 rounded-lg glass-input text-sm"
+                className="w-full px-4 py-3 rounded-lg glass-input text-xs"
                 required
                 min="1"
               />
             </div>
 
             {/* Expenses */}
-            <div className="space-y-2 text-left">
-              <label className="text-xs font-semibold uppercase tracking-wider text-white/50 flex items-center gap-1.5">
+            <div className="space-y-1.5 text-left">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-white/40 flex items-center gap-1.5">
                 <CreditCard className="h-3.5 w-3.5 text-[#59CFFF]" /> Monthly Expenses (₹)
               </label>
               <input
@@ -236,15 +240,15 @@ export default function DataCollection() {
                 value={monthlyExpenses}
                 onChange={(e) => setMonthlyExpenses(e.target.value)}
                 placeholder="e.g. 20000"
-                className="w-full px-4 py-3 rounded-lg glass-input text-sm"
+                className="w-full px-4 py-3 rounded-lg glass-input text-xs"
                 required
                 min="0"
               />
             </div>
 
             {/* Savings */}
-            <div className="space-y-2 text-left">
-              <label className="text-xs font-semibold uppercase tracking-wider text-white/50 flex items-center gap-1.5">
+            <div className="space-y-1.5 text-left">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-white/40 flex items-center gap-1.5">
                 <ClipboardList className="h-3.5 w-3.5 text-[#59CFFF]" /> Monthly Savings (₹)
               </label>
               <input
@@ -252,15 +256,15 @@ export default function DataCollection() {
                 value={monthlySavings}
                 onChange={(e) => setMonthlySavings(e.target.value)}
                 placeholder="e.g. 15000"
-                className="w-full px-4 py-3 rounded-lg glass-input text-sm"
+                className="w-full px-4 py-3 rounded-lg glass-input text-xs"
                 required
                 min="0"
               />
             </div>
 
             {/* UPI Velocity */}
-            <div className="space-y-2 text-left">
-              <label className="text-xs font-semibold uppercase tracking-wider text-white/50 flex items-center gap-1.5">
+            <div className="space-y-1.5 text-left">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-white/40 flex items-center gap-1.5">
                 <Sparkles className="h-3.5 w-3.5 text-[#59CFFF]" /> UPI Transaction Frequency
               </label>
               <input
@@ -268,32 +272,32 @@ export default function DataCollection() {
                 value={upiTransactionFrequency}
                 onChange={(e) => setUpiTransactionFrequency(e.target.value)}
                 placeholder="Transactions per month (e.g. 35)"
-                className="w-full px-4 py-3 rounded-lg glass-input text-sm"
+                className="w-full px-4 py-3 rounded-lg glass-input text-xs"
                 required
                 min="0"
               />
             </div>
 
             {/* Employment Type */}
-            <div className="space-y-2 text-left">
-              <label className="text-xs font-semibold uppercase tracking-wider text-white/50 flex items-center gap-1.5">
+            <div className="space-y-1.5 text-left">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-white/40 flex items-center gap-1.5">
                 <Briefcase className="h-3.5 w-3.5 text-[#59CFFF]" /> Employment Type
               </label>
               <select
                 value={employmentType}
                 onChange={(e) => setEmploymentType(e.target.value)}
-                className="w-full px-4 py-3 rounded-lg glass-input text-sm bg-navy-dark appearance-none cursor-pointer"
+                className="w-full px-4 py-3 rounded-lg glass-input text-xs bg-[#030E21] appearance-none cursor-pointer"
               >
                 <option value="SALARIED">Salaried (Full-time Contract)</option>
-                <option value="SELF_EMPLOYED">Self-Employed (Business/Freelance)</option>
+                <option value="SELF_EMPLOYED">Self-Employed (Freelance / Shopkeeper)</option>
                 <option value="STUDENT">Student Baseline</option>
                 <option value="UNEMPLOYED">Unemployed</option>
               </select>
             </div>
 
             {/* Occupation */}
-            <div className="space-y-2 text-left">
-              <label className="text-xs font-semibold uppercase tracking-wider text-white/50 flex items-center gap-1.5">
+            <div className="space-y-1.5 text-left">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-white/40 flex items-center gap-1.5">
                 <FileText className="h-3.5 w-3.5 text-[#59CFFF]" /> Occupation / Job Role
               </label>
               <input
@@ -301,20 +305,20 @@ export default function DataCollection() {
                 value={occupation}
                 onChange={(e) => setOccupation(e.target.value)}
                 placeholder="e.g. Software Engineer, Shopkeeper"
-                className="w-full px-4 py-3 rounded-lg glass-input text-sm"
+                className="w-full px-4 py-3 rounded-lg glass-input text-xs"
                 required
               />
             </div>
 
             {/* Utility consistency */}
-            <div className="space-y-2 text-left">
-              <label className="text-xs font-semibold uppercase tracking-wider text-white/50 flex items-center gap-1.5">
-                <HelpCircle className="h-3.5 w-3.5 text-[#59CFFF]" /> Utility Bill Payment Consistency
+            <div className="space-y-1.5 text-left">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-white/40 flex items-center gap-1.5">
+                <HelpCircle className="h-3.5 w-3.5 text-[#59CFFF]" /> Payment Consistency Fallback
               </label>
               <select
                 value={utilityBillConsistency}
                 onChange={(e) => setUtilityBillConsistency(e.target.value)}
-                className="w-full px-4 py-3 rounded-lg glass-input text-sm bg-navy-dark appearance-none cursor-pointer"
+                className="w-full px-4 py-3 rounded-lg glass-input text-xs bg-[#030E21] appearance-none cursor-pointer"
               >
                 <option value="CONSISTENT">100% Consistent (Paid on time)</option>
                 <option value="SEMI_CONSISTENT">Semi-Consistent (Occasional delay)</option>
@@ -323,16 +327,16 @@ export default function DataCollection() {
             </div>
 
             {/* Existing loans */}
-            <div className="space-y-2 text-left">
-              <label className="text-xs font-semibold uppercase tracking-wider text-white/50 flex items-center gap-1.5">
-                <DollarSign className="h-3.5 w-3.5 text-[#59CFFF]" /> Active Loans Outstanding (₹, Optional)
+            <div className="space-y-1.5 text-left">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-white/40 flex items-center gap-1.5">
+                <DollarSign className="h-3.5 w-3.5 text-[#59CFFF]" /> Active Loans Outstanding (Optional)
               </label>
               <input
                 type="number"
                 value={existingLoans}
                 onChange={(e) => setExistingLoans(e.target.value)}
                 placeholder="Omit or enter 0 if none"
-                className="w-full px-4 py-3 rounded-lg glass-input text-sm"
+                className="w-full px-4 py-3 rounded-lg glass-input text-xs"
                 min="0"
               />
             </div>
@@ -341,7 +345,7 @@ export default function DataCollection() {
 
           <button
             type="submit"
-            className="w-full py-4 rounded-xl btn-glow-sky text-[#071B3B] font-bold text-base mt-4 transition-all"
+            className="w-full py-3.5 rounded-xl btn-glow-sky text-xs font-bold mt-4 transition-all"
           >
             Compute AI Credit Assessment
           </button>

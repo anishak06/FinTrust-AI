@@ -8,11 +8,11 @@ export default {
     extend: {
       colors: {
         navy: {
-          dark: '#071B3B',
-          deep: '#030E21',
-          medium: '#0A254D',
-          light: '#143C75',
-          glass: 'rgba(7, 27, 59, 0.6)'
+          dark: '#020712',
+          deep: '#000205',
+          medium: '#080F25',
+          light: '#0E1B38',
+          glass: 'rgba(2, 7, 18, 0.65)'
         },
         sky: {
           accent: '#59CFFF',

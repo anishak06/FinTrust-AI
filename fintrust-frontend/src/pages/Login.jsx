@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Lock, User, Cpu, AlertCircle, ArrowLeft, Send } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import PremiumBackground from '../components/PremiumBackground';
 
 export default function Login() {
   const { login, forgotPassword } = useAuth();
@@ -70,77 +71,76 @@ export default function Login() {
   };
 
   return (
-    <div className="relative min-h-screen flex flex-col justify-center items-center px-4 bg-[#071B3B]">
-      {/* Decorative Spheres */}
-      <div className="absolute top-[20%] left-[20%] w-[30vw] h-[30vw] rounded-full bg-[#143c75] opacity-30 blur-[100px] pointer-events-none" />
-      <div className="absolute bottom-[20%] right-[20%] w-[35vw] h-[35vw] rounded-full bg-[#0a254d] opacity-40 blur-[120px] pointer-events-none" />
+    <div className="relative min-h-screen flex flex-col justify-center items-center px-4 bg-[#010308]">
+      {/* Background Animated Meshes & Grid */}
+      <PremiumBackground />
 
       {/* Back button */}
-      <div className="absolute top-8 left-8">
+      <div className="absolute top-8 left-8 z-20">
         <button 
           onClick={() => navigate('/')}
-          className="flex items-center gap-2 text-white/60 hover:text-white transition-colors"
+          className="flex items-center gap-2 text-xs font-semibold text-white/50 hover:text-white transition-colors"
         >
           <ArrowLeft className="h-4 w-4" /> Back to Home
         </button>
       </div>
 
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
-        className="w-full max-w-md glass-card rounded-2xl p-8 border-white/10 shadow-sky-glow relative z-10"
+        transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+        className="w-full max-w-md glass-card rounded-2xl p-8 border-white/10 relative z-10"
       >
         <div className="flex flex-col items-center mb-8">
-          <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-[#59CFFF] to-[#143c75] flex items-center justify-center mb-3 shadow-sky-glow">
-            <Cpu className="h-7 w-7 text-[#071B3B]" />
+          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-[#59CFFF] to-[#102C57] flex items-center justify-center mb-3.5 border border-white/10">
+            <Cpu className="h-5 w-5 text-[#59CFFF]" />
           </div>
-          <h2 className="text-2xl font-bold font-sans text-white">Welcome to FinTrust AI</h2>
-          <p className="text-white/60 text-xs mt-1">Sign in to manage your alternative credit profile</p>
+          <h2 className="text-xl font-bold text-white">Welcome back</h2>
+          <p className="text-white/40 text-xs mt-1">Sign in to manage your alternative credit profile</p>
         </div>
 
         {error && (
-          <div className="mb-6 p-4 rounded-lg bg-red-500/10 border border-red-500/20 text-red-300 text-sm flex items-start gap-2">
-            <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
+          <div className="mb-6 p-3.5 rounded-lg bg-[#D1495B]/10 border border-[#D1495B]/20 text-[#D1495B] text-xs flex items-start gap-2 text-left">
+            <AlertCircle className="h-4.5 w-4.5 shrink-0 mt-0.5" />
             <span>{error}</span>
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-5">
-          <div className="space-y-2 text-left">
-            <label className="text-xs font-semibold uppercase tracking-wider text-white/50">Username / Email</label>
+          <div className="space-y-1.5 text-left">
+            <label className="text-[10px] font-bold uppercase tracking-wider text-white/40">Username / Email</label>
             <div className="relative">
-              <User className="absolute left-3.5 top-3.5 h-4.5 w-4.5 text-white/40" />
+              <User className="absolute left-3.5 top-3.5 h-4.5 w-4.5 text-white/30" />
               <input
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder="Enter your username"
-                className="w-full pl-11 pr-4 py-3 rounded-lg glass-input text-sm"
+                className="w-full pl-11 pr-4 py-3 rounded-lg glass-input text-xs"
                 required
               />
             </div>
           </div>
 
-          <div className="space-y-2 text-left">
+          <div className="space-y-1.5 text-left">
             <div className="flex justify-between items-center">
-              <label className="text-xs font-semibold uppercase tracking-wider text-white/50">Password</label>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-white/40">Password</label>
               <button 
                 type="button" 
                 onClick={() => setForgotModalOpen(true)}
-                className="text-xs text-[#59CFFF] hover:underline"
+                className="text-[10px] font-semibold text-[#59CFFF] hover:text-[#7ce0ff] transition-colors"
               >
                 Forgot Password?
               </button>
             </div>
             <div className="relative">
-              <Lock className="absolute left-3.5 top-3.5 h-4.5 w-4.5 text-white/40" />
+              <Lock className="absolute left-3.5 top-3.5 h-4.5 w-4.5 text-white/30" />
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full pl-11 pr-4 py-3 rounded-lg glass-input text-sm"
+                className="w-full pl-11 pr-4 py-3 rounded-lg glass-input text-xs"
                 required
               />
             </div>
@@ -149,15 +149,15 @@ export default function Login() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3.5 mt-2 rounded-lg btn-glow-sky text-[#071B3B] font-bold text-sm transition-all disabled:opacity-50"
+            className="w-full py-3.5 mt-2 rounded-lg btn-glow-sky text-xs font-bold transition-all disabled:opacity-50"
           >
             {loading ? 'Authenticating...' : 'Sign In'}
           </button>
         </form>
 
-        <p className="mt-8 text-center text-xs text-white/50">
-          New to the platform?{' '}
-          <Link to="/signup" className="text-[#59CFFF] font-semibold hover:underline">
+        <p className="mt-8 text-center text-xs text-white/40">
+          New to FinTrust AI?{' '}
+          <Link to="/signup" className="text-[#59CFFF] font-semibold hover:text-[#7ce0ff] transition-colors">
             Create an Account
           </Link>
         </p>
@@ -165,14 +165,10 @@ export default function Login() {
 
       {/* Forgot Password Modal */}
       {forgotModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-navy-deep/80 backdrop-blur-sm">
-          <motion.div
-            initial={{ scale: 0.95, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="w-full max-w-sm glass-card rounded-xl p-6 border-white/10"
-          >
-            <div className="flex justify-between items-center border-b border-white/10 pb-3 mb-4">
-              <h3 className="font-bold text-white text-base">Recover Password</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#030E21]/80 backdrop-blur-sm">
+          <div className="w-full max-w-sm glass-card rounded-xl p-6 border-white/10">
+            <div className="flex justify-between items-center border-b border-white/5 pb-3 mb-4">
+              <h3 className="font-bold text-white text-xs">Recover Password</h3>
               <button 
                 onClick={() => setForgotModalOpen(false)}
                 className="text-white/40 hover:text-white text-lg font-bold"
@@ -182,18 +178,18 @@ export default function Login() {
             </div>
 
             {resetMessage ? (
-              <div className="p-4 rounded bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs">
+              <div className="p-3.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-[#34C759] text-xs">
                 {resetMessage}
               </div>
             ) : (
               <form onSubmit={handleForgotPasswordSubmit} className="space-y-4 text-left">
-                <p className="text-white/70 text-xs leading-relaxed">
-                  Enter your registered username, and we will send a password reset simulation link.
+                <p className="text-white/50 text-xs leading-normal">
+                  Enter your registered username. We will simulate sending a password recovery link to your registered email.
                 </p>
-                {resetError && <div className="text-red-400 text-xs">{resetError}</div>}
+                {resetError && <div className="text-[#D1495B] text-xs font-semibold">{resetError}</div>}
                 
                 <div className="space-y-1">
-                  <label className="text-[10px] uppercase text-white/50 tracking-wider">Username</label>
+                  <label className="text-[9px] font-bold uppercase text-white/40 tracking-wider">Username</label>
                   <input
                     type="text"
                     value={resetUsername}
@@ -207,13 +203,13 @@ export default function Login() {
                 <button
                   type="submit"
                   disabled={resetLoading}
-                  className="w-full py-2.5 rounded bg-[#59CFFF] text-[#071B3B] font-bold text-xs flex justify-center items-center gap-1.5"
+                  className="w-full py-2.5 rounded btn-glow-sky text-xs font-bold flex justify-center items-center gap-1.5"
                 >
-                  <Send className="h-3 w-3" /> {resetLoading ? 'Sending...' : 'Send Recovery Link'}
+                  <Send className="h-3.5 w-3.5" /> {resetLoading ? 'Sending...' : 'Send Recovery Link'}
                 </button>
               </form>
             )}
-          </motion.div>
+          </div>
         </div>
       )}
     </div>

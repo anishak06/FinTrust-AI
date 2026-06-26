@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Manrope:wght@300;400;500;600;700;800&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -5,66 +7,102 @@
 @layer base {
   :root {
     color-scheme: dark;
+    --font-primary: 'Plus Jakarta Sans', sans-serif;
+    --font-secondary: 'Manrope', sans-serif;
   }
+  
   body {
-    background-color: #071B3B;
-    background-image: radial-gradient(circle at 50% 0%, #0a254d 0%, #071B3B 60%, #030e21 100%);
+    font-family: var(--font-primary);
+    background-color: #010308;
+    background-image: radial-gradient(circle at 50% 0%, #050b1d 0%, #010308 70%, #000002 100%);
     background-attachment: fixed;
     margin: 0;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-primary);
+    letter-spacing: -0.02em;
+  }
+  
+  p, span, div, input, select, button, table {
+    font-family: var(--font-secondary);
+    letter-spacing: -0.01em;
   }
 }
 
 @layer components {
-  /* Glassmorphism card utility */
+  /* Premium Stripe-like Glassmorphism */
   .glass-card {
-    background: rgba(10, 37, 77, 0.35);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(89, 207, 255, 0.12);
-    box-shadow: 0 8px 32px 0 rgba(3, 14, 33, 0.3);
+    background: rgba(3, 7, 20, 0.55);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.8);
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
   }
   
   .glass-card-hover {
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
   }
   
   .glass-card-hover:hover {
-    background: rgba(10, 37, 77, 0.5);
-    border-color: rgba(89, 207, 255, 0.3);
-    box-shadow: 0 12px 40px 0 rgba(89, 207, 255, 0.15);
+    background: rgba(3, 7, 20, 0.75);
+    border-color: rgba(89, 207, 255, 0.25);
+    box-shadow: 0 20px 40px -10px rgba(89, 207, 255, 0.15);
     transform: translateY(-4px);
   }
 
   /* Glassmorphism input fields */
   .glass-input {
-    background: rgba(3, 14, 33, 0.4);
-    border: 1px solid rgba(89, 207, 255, 0.15);
+    background: rgba(3, 14, 33, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.08);
     color: #ffffff;
-    transition: all 0.2s ease-in-out;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   .glass-input:focus {
-    background: rgba(3, 14, 33, 0.6);
-    border-color: rgba(89, 207, 255, 0.7);
-    box-shadow: 0 0 15px rgba(89, 207, 255, 0.15);
+    background: rgba(3, 14, 33, 0.7);
+    border-color: rgba(89, 207, 255, 0.5);
+    box-shadow: 0 0 20px rgba(89, 207, 255, 0.08);
     outline: none;
   }
 
-  /* Glow button standard */
+  /* Glow button premium */
   .btn-glow-sky {
-    background: linear-gradient(135deg, #59CFFF 0%, #29b6f6 100%);
-    box-shadow: 0 4px 15px rgba(89, 207, 255, 0.25);
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    background: linear-gradient(135deg, #59CFFF 0%, #1e90ff 100%);
+    color: #071B3B;
+    box-shadow: 0 4px 20px rgba(89, 207, 255, 0.15);
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   .btn-glow-sky:hover {
-    box-shadow: 0 4px 25px rgba(89, 207, 255, 0.5);
-    transform: scale(1.02);
+    box-shadow: 0 8px 30px rgba(89, 207, 255, 0.35);
+    transform: translateY(-1px);
+  }
+  
+  .btn-glow-sky:active {
+    transform: translateY(1px);
+  }
+
+  /* Secondary outline button */
+  .btn-outline-premium {
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.02);
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .btn-outline-premium:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.25);
+    transform: translateY(-1px);
   }
 
   /* Glow text sky */
   .text-glow-sky {
-    text-shadow: 0 0 12px rgba(89, 207, 255, 0.4);
+    text-shadow: 0 0 15px rgba(89, 207, 255, 0.3);
   }
 
   /* Hide default scrollbar but keep functionality */
@@ -79,19 +117,48 @@
 
 /* Custom styled scrollbars for premium feel */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #030e21;
+  background: #030E21;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #143c75;
-  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 99px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
   background: #59CFFF;
 }
+
+/* Slow animated mesh gradient blobs */
+@keyframes mesh-move {
+  0% {
+    transform: translate(0px, 0px) scale(1);
+  }
+  33% {
+    transform: translate(30px, -50px) scale(1.1);
+  }
+  66% {
+    transform: translate(-20px, 20px) scale(0.95);
+  }
+  100% {
+    transform: translate(0px, 0px) scale(1);
+  }
+}
+
+.animate-mesh-1 {
+  animation: mesh-move 20s infinite alternate ease-in-out;
+}
+
+.animate-mesh-2 {
+  animation: mesh-move 25s infinite alternate-reverse ease-in-out;
+}
+
+.animate-mesh-3 {
+  animation: mesh-move 18s infinite alternate ease-in-out;
+}
+

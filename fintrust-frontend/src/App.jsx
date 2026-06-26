@@ -17,7 +17,7 @@ function PrivateRoute({ children }) {
   
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#071B3B] flex items-center justify-center text-white">
+      <div className="min-h-screen bg-[#010308] flex items-center justify-center text-white">
         <div className="animate-pulse">Loading secure session...</div>
       </div>
     );
@@ -31,7 +31,7 @@ function AdminRoute({ children }) {
   
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#071B3B] flex items-center justify-center text-white">
+      <div className="min-h-screen bg-[#010308] flex items-center justify-center text-white">
         <div className="animate-pulse">Loading secure session...</div>
       </div>
     );

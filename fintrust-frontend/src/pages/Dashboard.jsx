@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, PieChart, Pie, Cell } from 'recharts';
-import { Cpu, ShieldCheck, DollarSign, LogOut, Plus, Trash2, Edit, AlertCircle, ChevronRight, CheckCircle, ArrowRight, Lightbulb, Target } from 'lucide-react';
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, BarChart, Bar, Cell } from 'recharts';
+import { Cpu, ShieldCheck, DollarSign, LogOut, Plus, Trash2, AlertCircle, ChevronRight, CheckCircle, ArrowRight, Lightbulb, Target, Search, Bell, User, FileText, Calendar, ChevronDown, CreditCard, TrendingUp, Wallet, History, CheckCircle2, Menu, X, Globe, Activity } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+import PremiumBackground from '../components/PremiumBackground';
+import NetworkGlobe from '../components/NetworkGlobe';
 
 export default function Dashboard() {
   const { user, token, logout, isAdmin } = useAuth();
@@ -13,8 +15,16 @@ export default function Dashboard() {
   const [latestAssessment, setLatestAssessment] = useState(null);
   const [assessmentHistory, setAssessmentHistory] = useState([]);
   const [goals, setGoals] = useState([]);
+  const [bills, setBills] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  // Tab state & Responsive mobile menu trigger
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  
+  // Accordion state for loan explanation
+  const [loanExplanationOpen, setLoanExplanationOpen] = useState(false);
 
   // Goal modal/inputs
   const [goalModalOpen, setGoalModalOpen] = useState(false);
@@ -25,7 +35,6 @@ export default function Dashboard() {
   const [goalError, setGoalError] = useState('');
   const [goalLoading, setGoalLoading] = useState(false);
 
-  // Fetch all user dashboard data
   const fetchData = async () => {
     setLoading(true);
     setError('');
@@ -60,6 +69,15 @@ export default function Dashboard() {
         setGoals(goalsData);
       }
 
+      // 4. Fetch uploaded bills
+      const billsRes = await fetch('http://localhost:8080/api/bills', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (billsRes.ok) {
+        const billsData = await billsRes.json();
+        setBills(billsData);
+      }
+
     } catch (err) {
       setError('Failed to fetch dashboard data. Please try again.');
     } finally {
@@ -73,7 +91,6 @@ export default function Dashboard() {
     }
   }, [token]);
 
-  // Goal submission
   const handleCreateGoal = async (e) => {
     e.preventDefault();
     setGoalError('');
@@ -119,7 +136,7 @@ export default function Dashboard() {
         setGoalTarget('');
         setGoalCurrent('');
         setGoalDate('');
-        fetchData(); // reload goals
+        fetchData();
       } else {
         const errData = await res.json();
         setGoalError(errData.error || 'Failed to create goal.');
@@ -131,7 +148,6 @@ export default function Dashboard() {
     }
   };
 
-  // Delete goal
   const handleDeleteGoal = async (id) => {
     if (!window.confirm('Are you sure you want to delete this savings goal?')) return;
     try {
@@ -140,7 +156,7 @@ export default function Dashboard() {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
-        fetchData(); // reload
+        fetchData();
       }
     } catch (err) {
       alert('Failed to delete goal.');
@@ -155,6 +171,11 @@ export default function Dashboard() {
   // Parsing JSON fields from latest assessment
   let scoreBreakdown = [];
   let recommendations = [];
+  let strengths = [];
+  let weaknesses = [];
+  let insightsSummary = '';
+  let loanExplanation = '';
+
   if (latestAssessment) {
     try {
       scoreBreakdown = JSON.parse(latestAssessment.scoreBreakdown) || [];
@@ -162,503 +183,812 @@ export default function Dashboard() {
       scoreBreakdown = [];
     }
     try {
-      recommendations = JSON.parse(latestAssessment.recommendations) || [];
+      recommendations = latestAssessment.recommendations ? JSON.parse(latestAssessment.recommendations) : [];
     } catch (e) {
       recommendations = [];
+    }
+    try {
+      strengths = latestAssessment.strengths ? JSON.parse(latestAssessment.strengths) : [];
+    } catch (e) {
+      strengths = [];
+    }
+    try {
+      weaknesses = latestAssessment.weaknesses ? JSON.parse(latestAssessment.weaknesses) : [];
+    } catch (e) {
+      weaknesses = [];
+    }
+    if (latestAssessment.geminiInsights) {
+      const parts = latestAssessment.geminiInsights.split('[Underwriting Decision Details]:');
+      insightsSummary = parts[0].trim();
+      loanExplanation = parts[1] ? parts[1].trim() : '';
     }
   }
 
   // Visual Score Formatting
   const getScoreColor = (score) => {
-    if (score >= 750) return '#10B981'; // green
-    if (score >= 630) return '#10B981';
-    if (score >= 520) return '#F59E0B'; // amber
-    return '#EF4444'; // red
+    if (score >= 750) return '#34C759'; // Success green
+    if (score >= 650) return '#34C759';
+    if (score >= 550) return '#F4B400'; // Warning yellow
+    return '#D1495B'; // Error red
   };
 
-  // Charts Preps
-  // 1. Donut Expense Breakdown Chart
-  const expenseData = latestAssessment ? [
-    { name: 'Core Expenses (Rent/Bills)', value: Math.round(latestAssessment.monthlyExpenses * 0.55), color: '#143c75' },
-    { name: 'Living & Groceries', value: Math.round(latestAssessment.monthlyExpenses * 0.25), color: '#59CFFF' },
-    { name: 'Discretionary / Other', value: Math.round(latestAssessment.monthlyExpenses * 0.20), color: '#F5E6D3' }
+  const getScoreStatusLabel = (score) => {
+    if (score >= 750) return 'Excellent';
+    if (score >= 650) return 'Good';
+    if (score >= 550) return 'Fair';
+    return 'Poor';
+  };
+
+  // Charts data
+  const barChartData = latestAssessment ? [
+    { name: 'Income', Inflow: latestAssessment.monthlyIncome, fill: 'url(#incomeGrad)' },
+    { name: 'Expenses', Outflow: latestAssessment.monthlyExpenses, fill: 'url(#expenseGrad)' }
   ] : [];
 
-  // 2. Savings and Income History Trend Chart
-  // We formulate up to 6 months of historical coordinates for visual depth
-  const trendData = latestAssessment ? [
-    { name: 'Jan', Savings: Math.round(latestAssessment.monthlySavings * 0.7), Income: latestAssessment.monthlyIncome },
-    { name: 'Feb', Savings: Math.round(latestAssessment.monthlySavings * 0.8), Income: latestAssessment.monthlyIncome },
-    { name: 'Mar', Savings: Math.round(latestAssessment.monthlySavings * 0.75), Income: latestAssessment.monthlyIncome },
-    { name: 'Apr', Savings: Math.round(latestAssessment.monthlySavings * 0.9), Income: latestAssessment.monthlyIncome },
-    { name: 'May', Savings: Math.round(latestAssessment.monthlySavings * 0.95), Income: latestAssessment.monthlyIncome },
-    { name: 'Current', Savings: latestAssessment.monthlySavings, Income: latestAssessment.monthlyIncome }
+  const savingsTrendData = latestAssessment ? [
+    { name: '1 Jul', Savings: Math.round(latestAssessment.monthlySavings * 0.72) },
+    { name: '8 Jul', Savings: Math.round(latestAssessment.monthlySavings * 0.85) },
+    { name: '15 Jul', Savings: Math.round(latestAssessment.monthlySavings * 0.78) },
+    { name: '22 Jul', Savings: Math.round(latestAssessment.monthlySavings * 0.93) },
+    { name: '29 Jul', Savings: latestAssessment.monthlySavings }
   ] : [];
 
-  // Render Skeletons during load
+  const breakdownPieData = scoreBreakdown.map((item, idx) => {
+    const colors = ['#59CFFF', '#34C759', '#F4B400', '#F5E6D3', '#1E6F9F'];
+    return {
+      name: item.factor,
+      value: item.points,
+      color: colors[idx % colors.length]
+    };
+  });
+
+  const scrollToSection = (id) => {
+    const element = document.getElementById(id);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    setMobileMenuOpen(false);
+  };
+
+  const getStatusBadge = (status) => {
+    if (status === 'PAID_ON_TIME') return 'bg-emerald-500/10 text-[#34C759] border border-emerald-500/20';
+    if (status === 'PAID_LATE') return 'bg-amber-500/10 text-[#F4B400] border border-amber-500/20';
+    return 'bg-red-500/10 text-[#D1495B] border border-red-500/20';
+  };
+
+  const getStatusLabel = (status) => {
+    if (status === 'PAID_ON_TIME') return 'On Time';
+    if (status === 'PAID_LATE') return 'Late';
+    return 'Pending';
+  };
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#071B3B] text-white flex flex-col">
-        <header className="border-b border-white/10 px-6 py-4 flex justify-between items-center bg-[#071B3B]/60 backdrop-blur-md">
-          <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded bg-white/10 animate-pulse" />
-            <div className="h-5 bg-white/10 rounded w-24 animate-pulse" />
-          </div>
-          <div className="h-8 bg-white/10 rounded w-20 animate-pulse" />
-        </header>
-        <div className="flex-1 mx-auto max-w-7xl w-full px-6 py-8 space-y-6">
-          <div className="h-8 bg-white/10 rounded w-48 animate-pulse" />
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="h-40 bg-white/5 rounded-xl border border-white/5 animate-pulse" />
-            <div className="h-40 bg-white/5 rounded-xl border border-white/5 animate-pulse" />
-            <div className="h-40 bg-white/5 rounded-xl border border-white/5 animate-pulse" />
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="h-80 bg-white/5 rounded-xl border border-white/5 animate-pulse" />
-            <div className="h-80 bg-white/5 rounded-xl border border-white/5 animate-pulse" />
-          </div>
+      <div className="min-h-screen bg-[#010308] text-white flex flex-col justify-center items-center">
+        <PremiumBackground />
+        <div className="relative z-10 flex flex-col items-center space-y-4">
+          <div className="h-10 w-10 rounded-full border-4 border-white/10 border-t-[#59CFFF] animate-spin" />
+          <span className="text-xs text-white/50 tracking-wider">Syncing Secure Financial Ledger...</span>
         </div>
       </div>
     );
   }
 
+  const navigationItems = [
+    { id: 'dashboard', label: 'Dashboard', icon: Wallet, section: 'dashboard-top' },
+    { id: 'credit', label: 'Credit Score', icon: History, section: 'credit-section' },
+    { id: 'analytics', label: 'Financial Overview', icon: TrendingUp, section: 'analytics-section' },
+    { id: 'bills', label: 'Bills & Payments', icon: CreditCard, route: '/supporting-documents' },
+    { id: 'docs', label: 'Documents', icon: FileText, route: '/supporting-documents' },
+    { id: 'insights', label: 'AI Insights', icon: Lightbulb, section: 'insights-section' }
+  ];
+
   return (
-    <div className="min-h-screen bg-[#071B3B] text-white flex flex-col">
-      {/* Navigation Header */}
-      <header className="border-b border-white/10 bg-[#071B3B]/60 backdrop-blur-md sticky top-0 z-30">
-        <div className="mx-auto max-w-7xl flex items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate('/dashboard')}>
-            <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-[#59CFFF] to-[#143c75] flex items-center justify-center">
-              <Cpu className="h-5 w-5 text-[#071B3B]" />
+    <div className="min-h-screen bg-[#010308] text-white flex relative">
+      {/* Background Animated Layer */}
+      <PremiumBackground />
+
+      {/* 1. Left Sidebar (Desktop Only) */}
+      <aside className="hidden lg:flex w-64 border-r border-white/5 bg-[#030E21]/40 backdrop-blur-xl flex flex-col justify-between sticky top-0 h-screen z-30 shrink-0">
+        <div className="p-6 space-y-8">
+          {/* Logo */}
+          <div className="flex items-center gap-2.5 cursor-pointer" onClick={() => navigate('/')}>
+            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-[#59CFFF] to-[#102C57] flex items-center justify-center border border-white/10">
+              <Cpu className="h-4.5 w-4.5 text-[#59CFFF]" />
             </div>
-            <span className="text-xl font-bold tracking-tight">
+            <span className="text-lg font-bold tracking-tight">
               FinTrust<span className="text-[#59CFFF] font-light">AI</span>
             </span>
           </div>
 
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-white/70 hidden sm:inline-block">
-              Hi, <b className="text-white">{user?.fullName}</b>
-            </span>
-            <button
-              onClick={() => navigate('/supporting-documents')}
-              className="px-4 py-1.5 rounded bg-white/5 border border-white/10 text-white text-xs font-semibold hover:bg-white/10 transition-all"
-            >
-              Supporting Bills
-            </button>
+          {/* Navigation Links */}
+          <nav className="flex flex-col gap-1.5 text-left text-xs font-semibold text-white/60">
+            {navigationItems.map(item => (
+              <button
+                key={item.id}
+                onClick={() => {
+                  if (item.route) {
+                    navigate(item.route);
+                  } else {
+                    setActiveTab(item.id);
+                    scrollToSection(item.section);
+                  }
+                }}
+                className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${activeTab === item.id ? 'bg-[#59CFFF]/10 text-[#59CFFF] border-l-2 border-[#59CFFF]' : 'hover:bg-white/5 hover:text-white'}`}
+              >
+                <item.icon className="h-4 w-4" /> {item.label}
+              </button>
+            ))}
             {isAdmin && (
               <button
                 onClick={() => navigate('/admin')}
-                className="px-4 py-1.5 rounded bg-[#59CFFF]/10 border border-[#59CFFF]/25 text-[#59CFFF] text-xs font-semibold hover:bg-[#59CFFF]/20 transition-all"
+                className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/5 hover:text-white transition-all text-[#59CFFF]"
               >
-                Admin Panel
+                <ShieldCheck className="h-4 w-4" /> Admin Panel
               </button>
             )}
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-red-400 hover:text-red-300 transition-colors"
-            >
-              <LogOut className="h-4 w-4" /> Sign Out
-            </button>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Dashboard Panel */}
-      <main className="flex-1 mx-auto max-w-7xl w-full px-6 py-8">
-        
-        {/* Header CTA */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold">Borrower Dashboard</h1>
-            <p className="text-white/50 text-xs mt-1">Real-time alternative credit underwriting parameters</p>
-          </div>
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
-            <button
-              onClick={() => navigate('/supporting-documents')}
-              className="px-5 py-2.5 rounded-lg border border-[#59CFFF]/30 text-[#59CFFF] font-bold text-sm hover:bg-[#59CFFF]/10 transition-all flex items-center justify-center gap-1.5"
-            >
-              Upload Supporting Bills
-            </button>
-            <button
-              onClick={() => navigate('/check-eligibility')}
-              className="px-5 py-2.5 rounded-lg btn-glow-sky text-[#071B3B] font-bold text-sm flex items-center justify-center gap-1.5"
-            >
-              <Plus className="h-4 w-4" /> New Credit Assessment
-            </button>
-          </div>
+          </nav>
         </div>
 
-        {error && (
-          <div className="mb-6 p-4 rounded-lg bg-red-500/10 border border-red-500/20 text-red-300 text-sm">
-            {error}
+        {/* Sidebar Footer Logout */}
+        <div className="p-6 border-t border-white/5">
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center gap-3 px-4 py-3 text-xs font-semibold text-red-400 hover:text-red-300 transition-colors rounded-lg hover:bg-red-500/5 text-left"
+          >
+            <LogOut className="h-4.5 w-4.5" /> Sign Out
+          </button>
+        </div>
+      </aside>
+
+      {/* 2. Responsive Mobile Drawer Navigation */}
+      <AnimatePresence>
+        {mobileMenuOpen && (
+          <div className="fixed inset-0 z-50 lg:hidden flex">
+            {/* Overlay */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setMobileMenuOpen(false)}
+              className="fixed inset-0 bg-[#030E21]/80 backdrop-blur-sm"
+            />
+            {/* Drawer */}
+            <motion.div
+              initial={{ x: '-100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '-100%' }}
+              transition={{ type: 'tween', duration: 0.3 }}
+              className="relative w-64 bg-[#010308] border-r border-white/10 flex flex-col justify-between p-6 z-10 h-full text-left"
+            >
+              <div className="space-y-8">
+                {/* Header inside drawer */}
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-2">
+                    <div className="h-7 w-7 rounded bg-gradient-to-br from-[#59CFFF] to-[#102C57] flex items-center justify-center">
+                      <Cpu className="h-4 w-4 text-[#59CFFF]" />
+                    </div>
+                    <span className="font-bold text-white text-base">FinTrust AI</span>
+                  </div>
+                  <button onClick={() => setMobileMenuOpen(false)} className="text-white/40 hover:text-white">
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+
+                {/* Mobile Links */}
+                <nav className="flex flex-col gap-1.5 text-xs font-semibold text-white/60">
+                  {navigationItems.map(item => (
+                    <button
+                      key={item.id}
+                      onClick={() => {
+                        if (item.route) {
+                          navigate(item.route);
+                        } else {
+                          setActiveTab(item.id);
+                          scrollToSection(item.section);
+                        }
+                      }}
+                      className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${activeTab === item.id ? 'bg-[#59CFFF]/10 text-[#59CFFF]' : 'hover:bg-white/5 hover:text-white'}`}
+                    >
+                      <item.icon className="h-4 w-4" /> {item.label}
+                    </button>
+                  ))}
+                  {isAdmin && (
+                    <button
+                      onClick={() => navigate('/admin')}
+                      className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/5 hover:text-white text-[#59CFFF]"
+                    >
+                      <ShieldCheck className="h-4 w-4" /> Admin Panel
+                    </button>
+                  )}
+                </nav>
+              </div>
+
+              <div>
+                <button
+                  onClick={handleLogout}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-xs font-semibold text-red-400 hover:text-red-300 rounded-lg hover:bg-red-500/5 text-left"
+                >
+                  <LogOut className="h-4.5 w-4.5" /> Sign Out
+                </button>
+              </div>
+            </motion.div>
           </div>
         )}
+      </AnimatePresence>
 
-        {/* If no assessment, prompt user */}
-        {!latestAssessment ? (
-          <div className="glass-card p-8 rounded-2xl border-white/10 text-center space-y-6 max-w-2xl mx-auto my-12">
-            <AlertCircle className="h-14 w-14 text-[#59CFFF] mx-auto opacity-75 animate-bounce" />
-            <div className="space-y-2">
-              <h2 className="text-xl font-bold">No Credit Assessment Found</h2>
-              <p className="text-white/60 text-sm max-w-md mx-auto">
-                We need your alternative telemetry inputs (savings rate, bill payment metrics) to calculate your FinTrust Score and loan eligibility.
-              </p>
-            </div>
+      {/* 3. Main Scrollable Panel */}
+      <main className="flex-grow flex flex-col min-w-0 max-h-screen overflow-y-auto relative z-10" id="dashboard-top">
+        
+        {/* Top Navigation Bar */}
+        <header className="border-b border-white/5 bg-[#030E21]/20 backdrop-blur-xl px-6 lg:px-8 py-5 flex items-center justify-between sticky top-0 z-20">
+          <div className="flex items-center gap-3">
+            {/* Hamburger for mobile */}
             <button
-              onClick={() => navigate('/check-eligibility')}
-              className="px-6 py-3 rounded-lg btn-glow-sky text-[#071B3B] font-bold text-sm inline-flex items-center gap-1.5"
+              onClick={() => setMobileMenuOpen(true)}
+              className="lg:hidden h-8 w-8 rounded-lg bg-white/5 border border-white/5 flex items-center justify-center text-white/70 hover:text-white"
             >
-              Check Eligibility Now <ChevronRight className="h-4.5 w-4.5" />
+              <Menu className="h-4.5 w-4.5" />
             </button>
+            <div className="text-left">
+              <h2 className="text-sm lg:text-base font-bold text-white leading-tight">Welcome back, {user?.fullName || 'Arjun Sharma'} 👋</h2>
+              <p className="text-[9px] text-white/40 mt-0.5">Here's your alternative financial overview for July 2025</p>
+            </div>
           </div>
-        ) : (
-          <div className="space-y-8">
-            
-            {/* Top Summaries Row */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+
+          <div className="flex items-center gap-3 lg:gap-5">
+            {/* Search */}
+            <div className="relative hidden md:block">
+              <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-white/30" />
+              <input
+                type="text"
+                placeholder="Search telemetry..."
+                className="w-48 bg-white/5 border border-white/5 rounded-lg py-1.5 pl-9 pr-3 text-[11px] text-white placeholder-white/20 focus:outline-none focus:border-[#59CFFF]/50 transition-colors"
+              />
+            </div>
+
+            {/* Notification bell */}
+            <button className="h-8 w-8 rounded-lg bg-white/5 border border-white/5 flex items-center justify-center text-white/70 hover:text-white relative">
+              <Bell className="h-4 w-4" />
+              <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-[#D1495B]" />
+            </button>
+
+            {/* Date filter */}
+            <div className="hidden sm:flex items-center gap-2 bg-white/5 border border-white/5 px-3 py-1.5 rounded-lg text-[10px] font-semibold text-white/70">
+              <Calendar className="h-3.5 w-3.5 text-[#59CFFF]" />
+              <span>01 Jul 2025 - 31 Jul 2025</span>
+            </div>
+
+            {/* User Profile initials */}
+            <div className="flex items-center gap-2.5 border-l border-white/10 pl-3 lg:pl-5">
+              <div className="h-8 w-8 rounded-full bg-gradient-to-br from-[#59CFFF] to-[#102C57] border border-white/15 flex items-center justify-center font-bold text-xs text-white">
+                {user?.fullName ? user.fullName.charAt(0).toUpperCase() : 'A'}
+              </div>
+              <div className="text-left hidden lg:block">
+                <div className="text-xs font-bold text-white">{user?.fullName || 'Arjun Sharma'}</div>
+                <div className="text-[9px] text-white/40 font-semibold">{user?.role || 'Borrower'}</div>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        {/* Content Panel */}
+        <div className="px-6 lg:px-8 py-8 space-y-8 flex-1">
+
+          {/* Action Row */}
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div className="text-left">
+              <h1 className="text-xl lg:text-2xl font-extrabold text-white">Alternative Underwriting Console</h1>
+              <p className="text-white/40 text-[10px] mt-0.5">Real-time ledger updates & explainable indicators</p>
+            </div>
+            <div className="flex items-center gap-3 w-full sm:w-auto">
+              <button
+                onClick={() => navigate('/supporting-documents')}
+                className="btn-outline-premium px-4.5 py-2.5 rounded-lg text-xs font-bold w-full sm:w-auto text-center"
+              >
+                Upload Supporting Bills
+              </button>
+              <button
+                onClick={() => navigate('/check-eligibility')}
+                className="btn-glow-sky px-5 py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 w-full sm:w-auto"
+              >
+                <Plus className="h-4 w-4" /> New Credit Assessment
+              </button>
+            </div>
+          </div>
+
+          {error && (
+            <div className="p-4 rounded-lg bg-[#D1495B]/10 border border-[#D1495B]/20 text-[#D1495B] text-xs">
+              {error}
+            </div>
+          )}
+
+          {/* If no assessment, prompt user */}
+          {!latestAssessment ? (
+            <div className="glass-card p-10 rounded-2xl border-white/10 text-center space-y-6 max-w-xl mx-auto my-12 relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-20 h-20 bg-[#59CFFF]/5 rounded-full blur-xl" />
+              <AlertCircle className="h-12 w-12 text-[#59CFFF] mx-auto opacity-75 animate-bounce" />
+              <div className="space-y-1.5">
+                <h2 className="text-lg font-bold text-white">No Telemetry Assessed</h2>
+                <p className="text-white/50 text-xs max-w-sm mx-auto leading-relaxed">
+                  We need alternative inputs (savings ratios, payment cycles) to build your digital score card.
+                </p>
+              </div>
+              <button
+                onClick={() => navigate('/check-eligibility')}
+                className="btn-glow-sky px-6 py-3 rounded-lg text-xs font-bold inline-flex items-center gap-1.5"
+              >
+                Check Eligibility Now <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-8">
               
-              {/* Credit Score Gauge Card */}
-              <div className="glass-card p-5 rounded-xl border-white/5 text-center flex flex-col justify-between md:col-span-1 lg:col-span-1">
-                <span className="text-[10px] uppercase text-white/50 font-bold tracking-wider">FinTrust Score</span>
+              {/* 4. Top Row Metrics Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
                 
-                {/* Radial Simulation */}
-                <div className="relative flex items-center justify-center my-3">
-                  <svg className="w-28 h-28 transform -rotate-90">
-                    <circle cx="56" cy="56" r="48" stroke="rgba(255,255,255,0.05)" strokeWidth="8" fill="transparent" />
-                    <circle 
-                      cx="56" 
-                      cy="56" 
-                      r="48" 
-                      stroke={getScoreColor(latestAssessment.score)} 
-                      strokeWidth="8" 
-                      fill="transparent" 
-                      strokeDasharray="301.6"
-                      strokeDashoffset={301.6 - (301.6 * (latestAssessment.score - 300) / 600)}
-                    />
-                  </svg>
-                  <div className="absolute flex flex-col items-center justify-center">
-                    <span className="text-2xl font-extrabold" style={{ color: getScoreColor(latestAssessment.score) }}>
-                      {latestAssessment.score}
-                    </span>
-                    <span className="text-[9px] text-white/40">max 900</span>
+                {/* Credit Score Centered Gauge Card */}
+                <div className="glass-card glass-card-hover p-5 rounded-xl flex flex-col items-center justify-between text-center relative overflow-hidden" id="credit-section">
+                  <div className="w-full flex justify-between items-center text-[9px] uppercase text-white/40 tracking-wider font-bold mb-1">
+                    <span>Credit Score</span>
+                    <ShieldCheck className="h-4 w-4 text-[#59CFFF] opacity-75" />
+                  </div>
+                  
+                  {/* Gauge Ring */}
+                  <div className="relative flex items-center justify-center my-3 shrink-0">
+                    <svg className="w-28 h-28 transform -rotate-90">
+                      <circle cx="56" cy="56" r="48" stroke="rgba(255,255,255,0.03)" strokeWidth="6" fill="transparent" />
+                      <circle 
+                        cx="56" 
+                        cy="56" 
+                        r="48" 
+                        stroke={getScoreColor(latestAssessment.score)} 
+                        strokeWidth="6" 
+                        fill="transparent" 
+                        strokeDasharray="301.6"
+                        strokeDashoffset={301.6 - (301.6 * (latestAssessment.score - 300) / 600)}
+                        strokeLinecap="round"
+                        style={{
+                          filter: `drop-shadow(0 0 5px ${getScoreColor(latestAssessment.score)}40)`
+                        }}
+                      />
+                    </svg>
+                    <div className="absolute flex flex-col items-center justify-center">
+                      <span className="text-2xl font-extrabold tracking-tight text-white">
+                        {latestAssessment.score}
+                      </span>
+                      <span className="text-[8px] text-white/30 font-semibold uppercase tracking-wider">{getScoreStatusLabel(latestAssessment.score)}</span>
+                    </div>
+                  </div>
+
+                  {/* Score stats details */}
+                  <div className="space-y-0.5">
+                    <div className="text-[9px] text-white/45">Score range: 300-900</div>
+                    <div className="text-[10px] text-emerald-400 font-bold leading-none mt-1">
+                      +32 pts this month
+                    </div>
                   </div>
                 </div>
 
-                <span className="text-xs font-semibold px-2 py-0.5 rounded bg-white/5 inline-block mx-auto border border-white/10" style={{ color: getScoreColor(latestAssessment.score) }}>
-                  {latestAssessment.riskCategory}
-                </span>
+                {/* Loan Eligibility Card */}
+                <div className="glass-card glass-card-hover p-5 rounded-xl text-left flex flex-col justify-between">
+                  <span className="text-[9px] uppercase text-white/40 tracking-wider font-bold">Loan Eligibility</span>
+                  <div className="mt-3.5 space-y-1">
+                    <span className="text-xl font-extrabold text-white">
+                      {latestAssessment.loanEligible ? `₹${latestAssessment.suggestedLoanAmount.toLocaleString('en-IN')}` : 'Not Eligible'}
+                    </span>
+                    <p className="text-[10px] text-white/50 leading-normal">
+                      {latestAssessment.loanEligible ? 'Maximum Suggested Limit' : 'Requires higher savings buffers'}
+                    </p>
+                  </div>
+                  <button 
+                    onClick={() => scrollToSection('insights-section')}
+                    className="text-[9px] font-bold text-[#59CFFF] hover:text-[#7ce0ff] transition-colors mt-3 text-left inline-flex items-center gap-0.5"
+                  >
+                    View Details →
+                  </button>
+                </div>
+
+                {/* Payment Consistency Card */}
+                <div className="glass-card glass-card-hover p-5 rounded-xl text-left flex flex-col justify-between">
+                  <span className="text-[9px] uppercase text-white/40 tracking-wider font-bold">Payment Consistency</span>
+                  <div className="mt-3.5 space-y-1">
+                    <span className="text-xl font-extrabold text-white">
+                      {bills.length > 0 
+                        ? `${Math.round((bills.filter(b => 'PAID_ON_TIME' === b.paymentStatus).length / bills.length) * 100)}%`
+                        : '100%'}
+                    </span>
+                    <p className="text-[10px] text-emerald-400 font-semibold">
+                      Excellent Inflow Cycle
+                    </p>
+                  </div>
+                  <span className="text-[9px] text-white/30 mt-3 block">Based on verified bill statements</span>
+                </div>
+
+                {/* Financial Health Card */}
+                <div className="glass-card glass-card-hover p-5 rounded-xl text-left flex flex-col justify-between">
+                  <span className="text-[9px] uppercase text-white/40 tracking-wider font-bold">Financial Health</span>
+                  <div className="mt-3.5 space-y-1">
+                    <span className="text-xl font-extrabold text-[#59CFFF]">
+                      {latestAssessment.healthStatus}
+                    </span>
+                    <p className="text-[10px] text-white/50 leading-normal">
+                      Stability probability score: Low Risk
+                    </p>
+                  </div>
+                  <span className="text-[9px] text-white/30 mt-3 block">Calculated via ledger balance</span>
+                </div>
+
               </div>
 
-              {/* Loan Eligibility */}
-              <div className="glass-card p-5 rounded-xl border-white/5 flex flex-col justify-between">
-                <span className="text-[10px] uppercase text-white/50 font-bold tracking-wider">Loan Status</span>
+              {/* 5. Middle Charts & Recent Bills */}
+              <div className="grid grid-cols-1 lg:grid-cols-5 gap-6" id="analytics-section">
                 
-                <div className="my-2 space-y-1">
-                  <div className="flex items-center gap-2">
-                    {latestAssessment.loanEligible ? (
-                      <div className="h-6 w-6 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
-                        <CheckCircle className="h-4.5 w-4.5 text-emerald-400" />
-                      </div>
-                    ) : (
-                      <div className="h-6 w-6 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center">
-                        <AlertCircle className="h-4.5 w-4.5 text-red-400" />
-                      </div>
-                    )}
-                    <span className="text-lg font-bold">
-                      {latestAssessment.loanEligible ? 'Eligible' : 'Not Eligible'}
-                    </span>
+                {/* Area/Bar Chart - Income vs Expenses */}
+                <div className="glass-card glass-card-hover p-6 rounded-xl text-left lg:col-span-3">
+                  <div className="flex justify-between items-center border-b border-white/5 pb-3 mb-5">
+                    <div>
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-white/80">Cash Flow Distribution</h3>
+                      <p className="text-[9px] text-white/40 mt-0.5">Comparing monthly income structures and expenses</p>
+                    </div>
                   </div>
-                  {latestAssessment.loanEligible && (
-                    <div className="text-xs text-white/70">
-                      Amount: <b className="text-[#F5E6D3] text-sm">₹{latestAssessment.suggestedLoanAmount.toLocaleString('en-IN')}</b>
+                  
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={barChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }} barSize={38}>
+                        <defs>
+                          <linearGradient id="incomeGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#59CFFF" stopOpacity={0.8}/>
+                            <stop offset="95%" stopColor="#59CFFF" stopOpacity={0.15}/>
+                          </linearGradient>
+                          <linearGradient id="expenseGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#D1495B" stopOpacity={0.8}/>
+                            <stop offset="95%" stopColor="#D1495B" stopOpacity={0.15}/>
+                          </linearGradient>
+                        </defs>
+                        <XAxis dataKey="name" stroke="rgba(255,255,255,0.3)" fontSize={10} tickLine={false} />
+                        <YAxis stroke="rgba(255,255,255,0.3)" fontSize={10} tickLine={false} />
+                        <Tooltip 
+                          cursor={{ fill: 'rgba(89, 207, 255, 0.04)', radius: [6, 6, 0, 0] }}
+                          contentStyle={{ 
+                            backgroundColor: 'rgba(3, 14, 33, 0.85)', 
+                            borderColor: 'rgba(255, 255, 255, 0.08)', 
+                            borderRadius: '8px',
+                            backdropFilter: 'blur(10px)'
+                          }}
+                          labelStyle={{ color: '#fff', fontWeight: 'bold', fontSize: 11 }}
+                          itemStyle={{ color: '#59CFFF', fontSize: 10 }}
+                        />
+                        <Bar dataKey="Inflow" radius={[6, 6, 0, 0]} />
+                        <Bar dataKey="Outflow" radius={[6, 6, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                {/* Recent Bill Payments */}
+                <div className="glass-card glass-card-hover p-6 rounded-xl text-left lg:col-span-2 flex flex-col justify-between">
+                  <div className="flex justify-between items-center border-b border-white/5 pb-3 mb-4">
+                    <div>
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-white/80">Recent Bill Payments</h3>
+                      <p className="text-[9px] text-white/40 mt-0.5">Historical verification list</p>
+                    </div>
+                    <button 
+                      onClick={() => navigate('/supporting-documents')}
+                      className="text-[9px] font-bold text-[#59CFFF] hover:text-[#7ce0ff]"
+                    >
+                      View All
+                    </button>
+                  </div>
+
+                  {bills.length === 0 ? (
+                    <div className="flex-1 flex flex-col items-center justify-center text-center p-6 text-white/30 space-y-1">
+                      <FileText className="h-8 w-8 opacity-25" />
+                      <p className="text-xs">No bills uploaded yet</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3 flex-grow overflow-y-auto pr-1 no-scrollbar">
+                      {bills.slice(0, 4).map((bill) => (
+                        <div key={bill.id} className="flex items-center justify-between p-3.5 rounded-lg bg-white/[0.02] border border-white/5 text-xs">
+                          <div className="flex items-center gap-2.5">
+                            <div className="h-8 w-8 rounded-lg bg-[#59CFFF]/10 border border-[#59CFFF]/15 flex items-center justify-center text-[#59CFFF] shrink-0">
+                              <FileText className="h-4 w-4" />
+                            </div>
+                            <div>
+                              <div className="font-bold text-white">{bill.billType}</div>
+                              <div className="text-[9px] text-white/40 font-mono mt-0.5">{bill.merchantName}</div>
+                            </div>
+                          </div>
+                          <div className="text-right space-y-1 shrink-0">
+                            <div className="font-bold text-[#F5E6D3]">₹{bill.amount.toLocaleString()}</div>
+                            <span className={`px-2 py-0.5 rounded text-[8px] font-medium leading-none inline-block ${getStatusBadge(bill.paymentStatus)}`}>
+                              {getStatusLabel(bill.paymentStatus)}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
 
-                <span className="text-[10px] text-white/40">Underwritten based on Cashflow</span>
               </div>
 
-              {/* Health Status */}
-              <div className="glass-card p-5 rounded-xl border-white/5 flex flex-col justify-between">
-                <span className="text-[10px] uppercase text-white/50 font-bold tracking-wider">Financial Health</span>
+              {/* 6. Bottom Row: Breakdown, AI insights, Documents */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" id="insights-section">
                 
-                <div className="my-3">
-                  <span className="text-2xl font-extrabold text-[#59CFFF]">
-                    {latestAssessment.healthStatus}
-                  </span>
-                  <p className="text-[10px] text-white/50 mt-1">Overall savings & billing velocity</p>
-                </div>
-
-                <span className="text-[10px] text-white/40">Gemini Evaluated Matrix</span>
-              </div>
-
-              {/* Savings Buffer */}
-              <div className="glass-card p-5 rounded-xl border-white/5 flex flex-col justify-between">
-                <span className="text-[10px] uppercase text-white/50 font-bold tracking-wider">Monthly Savings</span>
-                
-                <div className="my-3">
-                  <span className="text-xl font-bold text-white">
-                    ₹{latestAssessment.monthlySavings.toLocaleString('en-IN')}
-                  </span>
-                  <div className="text-[10px] text-emerald-400 flex items-center gap-0.5 mt-0.5">
-                    <span>Rate: {Math.round(latestAssessment.monthlySavings / latestAssessment.monthlyIncome * 100)}% of Income</span>
+                {/* Credit Breakdown Donut/Table */}
+                <div className="glass-card glass-card-hover p-6 rounded-xl text-left space-y-4">
+                  <div>
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-[#F5E6D3]">Credit Score Breakdown</h3>
+                    <p className="text-[9px] text-white/40 mt-0.5">Factor weights of alternative scoring</p>
                   </div>
-                </div>
-
-                <span className="text-[10px] text-white/40">Buffer: ₹{latestAssessment.monthlyIncome.toLocaleString('en-IN')} Inflow</span>
-              </div>
-
-              {/* UPI/Spending Analysis */}
-              <div className="glass-card p-5 rounded-xl border-white/5 flex flex-col justify-between">
-                <span className="text-[10px] uppercase text-white/50 font-bold tracking-wider">UPI Activity</span>
-                
-                <div className="my-3">
-                  <span className="text-xl font-bold text-white">
-                    {latestAssessment.upiTransactionFrequency} <span className="text-xs text-white/50">txns/mo</span>
-                  </span>
-                  <div className="text-[10px] text-white/50 mt-0.5">
-                    Expenses: ₹{latestAssessment.monthlyExpenses.toLocaleString('en-IN')}
-                  </div>
-                </div>
-
-                <span className="text-[10px] text-white/40">Velocity probability: Low Risk</span>
-              </div>
-
-            </div>
-
-            {/* Middle Analytics Block */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              
-              {/* Recharts Area Savings Trend */}
-              <div className="glass-card p-6 rounded-xl border-white/5">
-                <h3 className="text-sm font-bold uppercase tracking-wider text-white/70 mb-4 text-left">
-                  Liquidity & Savings Buffers (6 Months)
-                </h3>
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={trendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                      <defs>
-                        <linearGradient id="colorSavings" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#59CFFF" stopOpacity={0.4}/>
-                          <stop offset="95%" stopColor="#59CFFF" stopOpacity={0}/>
-                        </linearGradient>
-                      </defs>
-                      <XAxis dataKey="name" stroke="rgba(255,255,255,0.4)" fontSize={10} tickLine={false} />
-                      <YAxis stroke="rgba(255,255,255,0.4)" fontSize={10} tickLine={false} />
-                      <Tooltip 
-                        contentStyle={{ backgroundColor: '#071B3B', borderColor: 'rgba(89,207,255,0.2)', color: '#fff' }}
-                        itemStyle={{ color: '#59CFFF' }}
-                      />
-                      <Area type="monotone" dataKey="Savings" stroke="#59CFFF" strokeWidth={2.5} fillOpacity={1} fill="url(#colorSavings)" />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-
-              {/* Expense Breakdown Pie Chart */}
-              <div className="glass-card p-6 rounded-xl border-white/5 flex flex-col justify-between">
-                <h3 className="text-sm font-bold uppercase tracking-wider text-white/70 mb-4 text-left">
-                  Expense Structure Distribution
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center flex-1">
                   
-                  {/* Recharts Pie */}
-                  <div className="h-44">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={expenseData}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={50}
-                          outerRadius={70}
-                          paddingAngle={3}
-                          dataKey="value"
-                        >
-                          {expenseData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} />
-                          ))}
-                        </Pie>
-                        <Tooltip 
-                          contentStyle={{ backgroundColor: '#071B3B', borderColor: 'rgba(89,207,255,0.2)' }}
-                          itemStyle={{ color: '#fff' }}
-                        />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-
-                  {/* Legend list */}
-                  <div className="space-y-3.5 text-left">
-                    {expenseData.map((item, index) => (
-                      <div key={index} className="flex items-center gap-2">
-                        <div className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
-                        <div className="flex-1 min-w-0">
-                          <div className="text-xs text-white/60 truncate">{item.name}</div>
-                          <div className="text-xs font-bold">₹{item.value.toLocaleString('en-IN')}</div>
-                        </div>
+                  {/* Weight Legend Capsules */}
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {breakdownPieData.map((item, idx) => (
+                      <div key={idx} className="p-2 rounded bg-white/[0.02] border border-white/5 flex items-center gap-2">
+                        <div className="h-2 w-2 rounded-full shrink-0 animate-pulse" style={{ backgroundColor: item.color }} />
+                        <span className="text-[9px] text-white/60 truncate">{item.name}</span>
                       </div>
                     ))}
                   </div>
 
+                  <div className="divide-y divide-white/5 space-y-3 pt-2">
+                    {scoreBreakdown.length > 0 ? (
+                      scoreBreakdown.map((item, index) => (
+                        <div key={index} className="flex items-start justify-between py-2 gap-4 text-xs">
+                          <div className="space-y-0.5 min-w-0">
+                            <div className="font-bold text-white truncate">{item.factor}</div>
+                            <div className="text-[9px] text-white/50 leading-normal">{item.description}</div>
+                          </div>
+                          <span className={`font-bold shrink-0 ${item.points >= 0 ? 'text-[#34C759]' : 'text-[#D1495B]'}`}>
+                            {item.points >= 0 ? `+${item.points}` : item.points} pts
+                          </span>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-xs text-white/30 italic py-4">No breakdown points loaded.</div>
+                    )}
+                  </div>
                 </div>
+
+                {/* AI Financial Insights Center */}
+                <div className="glass-card glass-card-hover p-6 rounded-xl text-left space-y-5">
+                  <div>
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-[#59CFFF]">AI Financial Insights</h3>
+                    <p className="text-[9px] text-white/40 mt-0.5">Gemini processed coaching profiles</p>
+                  </div>
+
+                  <div className="space-y-4 max-h-[300px] overflow-y-auto pr-1 no-scrollbar">
+                    
+                    {/* Strengths */}
+                    {strengths.length > 0 && (
+                      <div className="space-y-2">
+                        <div className="text-[9px] uppercase tracking-wider font-bold text-emerald-400">Strengths</div>
+                        {strengths.map((str, idx) => (
+                          <div key={idx} className="flex items-start gap-2 text-[10px] text-white/70 bg-emerald-500/5 border border-emerald-500/10 p-2 rounded-lg">
+                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                            <span>{str.replace(/^✅\s*/, '')}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Weaknesses */}
+                    {weaknesses.length > 0 && (
+                      <div className="space-y-2">
+                        <div className="text-[9px] uppercase tracking-wider font-bold text-amber-400">Areas to Watch</div>
+                        {weaknesses.map((weak, idx) => (
+                          <div key={idx} className="flex items-start gap-2 text-[10px] text-white/70 bg-amber-500/5 border border-amber-500/10 p-2 rounded-lg">
+                            <AlertCircle className="h-3.5 w-3.5 text-amber-400 shrink-0 mt-0.5" />
+                            <span>{weak.replace(/^⚠️\s*/, '')}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Recommendations */}
+                    {recommendations.length > 0 && (
+                      <div className="space-y-2">
+                        <div className="text-[9px] uppercase tracking-wider font-bold text-[#59CFFF]">Recommendations</div>
+                        {recommendations.map((rec, idx) => (
+                          <div key={idx} className="flex items-start gap-2 text-[10px] text-white/70 bg-[#59CFFF]/5 border border-[#59CFFF]/10 p-2 rounded-lg">
+                            <Lightbulb className="h-3.5 w-3.5 text-[#59CFFF] shrink-0 mt-0.5 animate-pulse" />
+                            <span>{rec}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Expandable Loan Explanation Card */}
+                    {loanExplanation && (
+                      <div className="border border-white/5 rounded-lg overflow-hidden bg-white/[0.01]">
+                        <button
+                          onClick={() => setLoanExplanationOpen(!loanExplanationOpen)}
+                          className="w-full flex items-center justify-between p-3.5 text-left text-xs font-bold text-white hover:bg-white/5 transition-colors"
+                        >
+                          <span>Underwriting Explanation</span>
+                          <ChevronDown className={`h-4 w-4 text-[#59CFFF] transition-transform ${loanExplanationOpen ? 'transform rotate-180' : ''}`} />
+                        </button>
+                        {loanExplanationOpen && (
+                          <div className="p-3.5 border-t border-white/5 text-[10px] text-white/50 leading-relaxed font-mono">
+                            {loanExplanation}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                  </div>
+                </div>
+
+                {/* Recent Documents Section */}
+                <div className="glass-card glass-card-hover p-6 rounded-xl text-left space-y-4">
+                  <div className="flex justify-between items-center border-b border-white/5 pb-3">
+                    <div>
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-white/80">Recent Documents</h3>
+                      <p className="text-[9px] text-white/40 mt-0.5">Secure upload files logs</p>
+                    </div>
+                    <button 
+                      onClick={() => navigate('/supporting-documents')}
+                      className="text-[9px] font-bold text-[#59CFFF] hover:text-[#7ce0ff]"
+                    >
+                      View All
+                    </button>
+                  </div>
+
+                  {bills.length === 0 ? (
+                    <div className="text-center py-12 text-xs text-white/30 italic">No files uploaded.</div>
+                  ) : (
+                    <div className="space-y-2.5 max-h-[310px] overflow-y-auto pr-1 no-scrollbar">
+                      {bills.slice(0, 5).map((bill) => (
+                        <div key={bill.id} className="p-3 rounded-lg bg-white/[0.02] border border-white/5 flex items-center justify-between text-xs">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <FileText className="h-4.5 w-4.5 text-[#59CFFF] shrink-0" />
+                            <div className="min-w-0">
+                              <div className="font-bold text-white truncate">{bill.fileName}</div>
+                              <div className="text-[8px] text-white/40 mt-0.5">Uploaded {bill.uploadDate ? bill.uploadDate.split('T')[0] : 'recent'}</div>
+                            </div>
+                          </div>
+                          <span className="text-[8px] font-semibold text-emerald-400 uppercase tracking-wide shrink-0 pl-3">Verified</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
               </div>
 
-            </div>
-
-            {/* Bottom Coaching & Goal Planner Blocks */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              
-              {/* Explainable Credit Breakdown */}
-              <div className="glass-card p-6 rounded-xl border-white/5 lg:col-span-2 text-left space-y-4">
-                <h3 className="text-sm font-bold uppercase tracking-wider text-[#F5E6D3] flex items-center gap-1.5">
-                  <CheckCircle className="h-4.5 w-4.5 text-[#F5E6D3]" /> Explainable Underwriting Factors
-                </h3>
-                <div className="h-1.5 w-12 bg-[#F5E6D3] rounded-full mb-2" />
+              {/* Row 7: Goals Planner & Global Ledger Node */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 
-                {/* Underwriting Weight Factors */}
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-4">
-                  <div className="p-2.5 rounded-lg bg-white/5 border border-white/5 text-center">
-                    <div className="text-[9px] text-white/50 uppercase font-semibold">Savings</div>
-                    <div className="text-xs font-bold text-[#59CFFF] mt-0.5">30% Weight</div>
+                {/* Savings Goals Planner */}
+                <div className="glass-card glass-card-hover p-6 rounded-xl text-left space-y-6 lg:col-span-2">
+                  <div className="flex justify-between items-center border-b border-white/5 pb-3">
+                    <div>
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-white/80 flex items-center gap-1.5">
+                        <Target className="h-4.5 w-4.5 text-[#59CFFF]" /> Financial Goals Planner
+                      </h3>
+                      <p className="text-[9px] text-white/40 mt-0.5">Establish target endpoints and calculate deposits</p>
+                    </div>
+                    <button
+                      onClick={() => setGoalModalOpen(true)}
+                      className="px-3.5 py-1.5 rounded bg-white/5 border border-white/10 text-[10px] hover:bg-white/10 flex items-center gap-1 font-semibold"
+                    >
+                      <Plus className="h-3.5 w-3.5 text-[#59CFFF]" /> Create Goal
+                    </button>
                   </div>
-                  <div className="p-2.5 rounded-lg bg-white/5 border border-white/5 text-center">
-                    <div className="text-[9px] text-white/50 uppercase font-semibold">Bill Payments</div>
-                    <div className="text-xs font-bold text-[#59CFFF] mt-0.5">25% Weight</div>
-                  </div>
-                  <div className="p-2.5 rounded-lg bg-white/5 border border-white/5 text-center">
-                    <div className="text-[9px] text-white/50 uppercase font-semibold">Income Stability</div>
-                    <div className="text-xs font-bold text-[#59CFFF] mt-0.5">20% Weight</div>
-                  </div>
-                  <div className="p-2.5 rounded-lg bg-white/5 border border-white/5 text-center">
-                    <div className="text-[9px] text-white/50 uppercase font-semibold">Expense Mgt</div>
-                    <div className="text-xs font-bold text-[#59CFFF] mt-0.5">15% Weight</div>
-                  </div>
-                  <div className="p-2.5 rounded-lg bg-white/5 border border-white/5 text-center col-span-2 sm:col-span-1">
-                    <div className="text-[9px] text-white/50 uppercase font-semibold">UPI Transactions</div>
-                    <div className="text-xs font-bold text-[#59CFFF] mt-0.5">10% Weight</div>
-                  </div>
+
+                  {goals.length === 0 ? (
+                    <div className="text-center py-12 text-white/30 text-xs italic flex flex-col items-center justify-center space-y-2">
+                      <Target className="h-8 w-8 opacity-20" />
+                      <p>No active goals. Click "Create Goal" to start planning.</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                      {goals.slice(0, 4).map((goal) => {
+                        const percent = Math.min(100, Math.round((goal.currentSavings / goal.targetAmount) * 100));
+                        return (
+                          <div key={goal.id} className="p-4 rounded-lg bg-white/[0.01] border border-white/5 flex flex-col justify-between gap-4 text-xs">
+                            <div className="space-y-1">
+                              <div className="flex justify-between items-start gap-3">
+                                <span className="font-bold text-white truncate">{goal.name}</span>
+                                <button
+                                  onClick={() => handleDeleteGoal(goal.id)}
+                                  className="text-white/20 hover:text-red-400 transition-colors shrink-0"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                              <div className="text-[9px] text-white/40">Target Date: {goal.targetDate}</div>
+                            </div>
+
+                            <div className="space-y-1.5">
+                              <div className="flex justify-between text-[10px] font-semibold">
+                                <span>{percent}% Completed</span>
+                                <span className="text-[#59CFFF]">₹{goal.currentSavings.toLocaleString()} / ₹{goal.targetAmount.toLocaleString()}</span>
+                              </div>
+                              <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+                                <div className="h-full bg-gradient-to-r from-[#102C57] to-[#59CFFF] rounded-full" style={{ width: `${percent}%` }} />
+                              </div>
+                            </div>
+
+                            <div className="pt-2 border-t border-white/5 text-[10px] text-white/50 flex justify-between items-center bg-white/[0.02] px-2.5 py-1.5 rounded">
+                              <span>Required Deposit:</span>
+                              <span className="font-bold text-[#F5E6D3]">₹{goal.monthlySavingsNeeded}/mo</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
 
-                <div className="divide-y divide-white/5 space-y-3">
-                  {scoreBreakdown.length > 0 ? (
-                    scoreBreakdown.map((item, index) => (
-                      <div key={index} className="flex items-start justify-between py-2 gap-4">
-                        <div className="space-y-0.5">
-                          <div className="text-sm font-bold text-white">{item.factor}</div>
-                          <div className="text-xs text-white/60 leading-normal">{item.description}</div>
-                        </div>
-                        <span className={`text-sm font-bold shrink-0 ${item.points >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                          {item.points >= 0 ? `+${item.points}` : item.points} pts
+                {/* Global Ledger Node Card */}
+                <div className="glass-card glass-card-hover p-6 rounded-xl text-left flex flex-col justify-between relative overflow-hidden">
+                  <div className="space-y-4">
+                    <div className="border-b border-white/5 pb-3">
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-[#59CFFF] flex items-center gap-1.5">
+                        <Globe className="h-4.5 w-4.5 text-[#59CFFF]" /> Global Ledger Node
+                      </h3>
+                      <p className="text-[9px] text-white/40 mt-0.5">Alternative underwriting mesh link</p>
+                    </div>
+
+                    {/* Miniature Globe container */}
+                    <div className="flex justify-center items-center py-2 relative h-40">
+                      <NetworkGlobe size={180} />
+                    </div>
+
+                    {/* Node statistics list */}
+                    <div className="space-y-2 text-[10px]">
+                      <div className="flex justify-between items-center p-2 rounded bg-white/[0.01] border border-white/5">
+                        <span className="text-white/45">Primary Peer Hub</span>
+                        <span className="font-mono font-bold text-white">MUMBAI-A3</span>
+                      </div>
+                      <div className="flex justify-between items-center p-2 rounded bg-white/[0.01] border border-white/5">
+                        <span className="text-white/45">Verification Status</span>
+                        <span className="font-bold text-emerald-400 flex items-center gap-1">
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" /> Active
                         </span>
                       </div>
-                    ))
-                  ) : (
-                    <div className="text-sm text-white/40 italic py-4">No breakdown factors generated.</div>
-                  )}
+                      <div className="flex justify-between items-center p-2 rounded bg-white/[0.01] border border-white/5">
+                        <span className="text-white/45">Ledger Peer Sync</span>
+                        <span className="font-mono text-white/70">Block 849,204</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="pt-4 border-t border-white/5 text-[9px] text-white/35 flex items-center gap-1.5 mt-4">
+                    <Activity className="h-3.5 w-3.5 text-[#59CFFF] animate-pulse" />
+                    <span>Scoring Telemetry: Online & Live</span>
+                  </div>
                 </div>
+
               </div>
 
-              {/* AI Coaching Tips */}
-              <div className="glass-card p-6 rounded-xl border-white/5 text-left space-y-4">
-                <h3 className="text-sm font-bold uppercase tracking-wider text-[#59CFFF] flex items-center gap-1.5">
-                  <Lightbulb className="h-4.5 w-4.5 text-[#59CFFF]" /> AI Financial Health Coach
-                </h3>
-                <div className="h-1.5 w-12 bg-[#59CFFF] rounded-full mb-2" />
-
-                <div className="space-y-3">
-                  {recommendations.length > 0 ? (
-                    recommendations.map((tip, index) => (
-                      <div key={index} className="flex items-start gap-2.5 p-3 rounded-lg bg-navy-medium/55 border border-[#59CFFF]/10 text-xs leading-relaxed text-white/80">
-                        <div className="h-1.5 w-1.5 rounded-full bg-[#59CFFF] mt-1.5 shrink-0 animate-ping" />
-                        <span>{tip}</span>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="text-xs text-white/40 italic py-4">No suggestions loaded. Maintain savings rates.</div>
-                  )}
+              {/* Secure Footer Banner */}
+              <div className="p-4.5 rounded-xl bg-[#030E21]/50 border border-white/5 text-center flex flex-col sm:flex-row items-center justify-center gap-3 relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-2 h-full bg-[#34C759]" />
+                <div className="h-8 w-8 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-400 shrink-0">
+                  <ShieldCheck className="h-4.5 w-4.5" />
+                </div>
+                <div className="text-left space-y-0.5">
+                  <div className="text-xs font-bold text-white">Your financial data is secure with bank-level encryption.</div>
+                  <div className="text-[9px] text-white/40">We never share your transaction profiles or document uploads with any third party.</div>
                 </div>
               </div>
 
             </div>
+          )}
 
-            {/* Savings Goals Modules */}
-            <div className="glass-card p-6 rounded-xl border-white/5 text-left space-y-6">
-              <div className="flex justify-between items-center border-b border-white/10 pb-4">
-                <div>
-                  <h3 className="text-sm font-bold uppercase tracking-wider text-white/80 flex items-center gap-1.5">
-                    <Target className="h-4.5 w-4.5 text-[#59CFFF]" /> Financial Goals Planner
-                  </h3>
-                  <p className="text-[10px] text-white/50 mt-0.5">Define target endpoints and calculate required monthly deposits</p>
-                </div>
-                <button
-                  onClick={() => setGoalModalOpen(true)}
-                  className="px-3.5 py-1.5 rounded bg-white/5 border border-white/15 text-xs hover:bg-white/10 flex items-center gap-1"
-                >
-                  <Plus className="h-3.5 w-3.5 text-[#59CFFF]" /> Create Goal
-                </button>
-              </div>
-
-              {goals.length === 0 ? (
-                <div className="text-center py-8 text-white/40 text-sm">
-                  No active savings goals declared. Click "Create Goal" above to calculate your timeline!
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                  {goals.map((goal) => {
-                    const percent = Math.min(100, Math.round((goal.currentSavings / goal.targetAmount) * 100));
-                    return (
-                      <div key={goal.id} className="p-4 rounded-lg bg-navy-deep/60 border border-white/5 flex flex-col justify-between gap-4">
-                        <div className="space-y-1">
-                          <div className="flex justify-between items-start gap-3">
-                            <span className="font-bold text-white text-sm">{goal.name}</span>
-                            <button
-                              onClick={() => handleDeleteGoal(goal.id)}
-                              className="text-white/30 hover:text-red-400 transition-colors"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                          <div className="text-[10px] text-white/40">Target: {goal.targetDate}</div>
-                        </div>
-
-                        {/* Progress Bar */}
-                        <div className="space-y-1">
-                          <div className="flex justify-between text-xs font-semibold">
-                            <span>{percent}% Completed</span>
-                            <span className="text-[#59CFFF]">₹{goal.currentSavings.toLocaleString()} / ₹{goal.targetAmount.toLocaleString()}</span>
-                          </div>
-                          <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
-                            <div className="h-full bg-gradient-to-r from-[#143c75] to-[#59CFFF] rounded-full" style={{ width: `${percent}%` }} />
-                          </div>
-                        </div>
-
-                        <div className="pt-2 border-t border-white/5 text-xs text-white/60 flex justify-between items-center bg-navy-medium/30 px-2.5 py-1.5 rounded">
-                          <span>Deposit Required:</span>
-                          <span className="font-bold text-[#F5E6D3]">₹{goal.monthlySavingsNeeded}/mo</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-          </div>
-        )}
-
+        </div>
       </main>
 
-      {/* Goal Creation Modal */}
+      {/* Goal Modal Overlays */}
       {goalModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-navy-deep/85 backdrop-blur-sm">
-          <motion.div
-            initial={{ scale: 0.95, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="w-full max-w-md glass-card rounded-xl p-6 border-white/10 space-y-4"
-          >
-            <div className="flex justify-between items-center border-b border-white/10 pb-3">
-              <h3 className="font-bold text-white text-base">New Savings Goal</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#030E21]/80 backdrop-blur-sm">
+          <div className="w-full max-w-sm glass-card rounded-xl p-6 border-white/10 space-y-4 text-left">
+            <div className="flex justify-between items-center border-b border-white/5 pb-3">
+              <h3 className="font-bold text-white text-sm">New Savings Goal</h3>
               <button 
                 onClick={() => setGoalModalOpen(false)}
                 className="text-white/40 hover:text-white text-lg font-bold"
@@ -668,19 +998,19 @@ export default function Dashboard() {
             </div>
 
             {goalError && (
-              <div className="p-3 rounded bg-red-500/10 border border-red-500/20 text-red-400 text-xs">
+              <div className="p-3 rounded bg-[#D1495B]/10 border border-[#D1495B]/20 text-[#D1495B] text-[10px]">
                 {goalError}
               </div>
             )}
 
-            <form onSubmit={handleCreateGoal} className="space-y-4 text-left">
+            <form onSubmit={handleCreateGoal} className="space-y-4">
               <div className="space-y-1">
-                <label className="text-[10px] uppercase text-white/50 tracking-wider">Goal Name</label>
+                <label className="text-[9px] uppercase text-white/50 tracking-wider font-semibold">Goal Name</label>
                 <input
                   type="text"
                   value={goalName}
                   onChange={(e) => setGoalName(e.target.value)}
-                  placeholder="e.g. Buy Laptop, Emergency Fund"
+                  placeholder="e.g. Purchase Laptop, Emergency Fund"
                   className="w-full px-3 py-2 rounded glass-input text-xs"
                   required
                 />
@@ -688,24 +1018,24 @@ export default function Dashboard() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <label className="text-[10px] uppercase text-white/50 tracking-wider">Target Amount (₹)</label>
+                  <label className="text-[9px] uppercase text-white/50 tracking-wider font-semibold">Target (₹)</label>
                   <input
                     type="number"
                     value={goalTarget}
                     onChange={(e) => setGoalTarget(e.target.value)}
-                    placeholder="e.g. 50000"
+                    placeholder="50000"
                     className="w-full px-3 py-2 rounded glass-input text-xs"
                     required
                     min="1"
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[10px] uppercase text-white/50 tracking-wider">Current Savings (₹)</label>
+                  <label className="text-[9px] uppercase text-white/50 tracking-wider font-semibold">Current (₹)</label>
                   <input
                     type="number"
                     value={goalCurrent}
                     onChange={(e) => setGoalCurrent(e.target.value)}
-                    placeholder="e.g. 5000"
+                    placeholder="5000"
                     className="w-full px-3 py-2 rounded glass-input text-xs"
                     required
                     min="0"
@@ -714,7 +1044,7 @@ export default function Dashboard() {
               </div>
 
               <div className="space-y-1">
-                <label className="text-[10px] uppercase text-white/50 tracking-wider">Target Completion Date</label>
+                <label className="text-[9px] uppercase text-white/50 tracking-wider font-semibold">Completion Date</label>
                 <input
                   type="date"
                   value={goalDate}
@@ -728,12 +1058,12 @@ export default function Dashboard() {
               <button
                 type="submit"
                 disabled={goalLoading}
-                className="w-full py-3 mt-2 rounded btn-glow-sky text-[#071B3B] font-bold text-xs"
+                className="w-full py-2.5 mt-2 rounded btn-glow-sky text-xs font-bold"
               >
-                {goalLoading ? 'Saving Goal...' : 'Calculate and Save Goal'}
+                {goalLoading ? 'Calculating Goal...' : 'Calculate & Save'}
               </button>
             </form>
-          </motion.div>
+          </div>
         </div>
       )}
     </div>

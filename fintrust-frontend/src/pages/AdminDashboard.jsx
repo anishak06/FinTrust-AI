@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from 'recharts';
 import { Cpu, Users, Award, ShieldCheck, CheckCircle, AlertCircle, ArrowLeft, RefreshCw, Calendar } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import PremiumBackground from '../components/PremiumBackground';
 
 export default function AdminDashboard() {
   const { token, logout, isAdmin } = useAuth();
@@ -68,21 +69,24 @@ export default function AdminDashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#071B3B] text-white flex flex-col justify-center items-center">
-        <RefreshCw className="h-10 w-10 text-[#59CFFF] animate-spin mb-4" />
-        <span className="text-sm text-white/50">Fetching underwriting analytics...</span>
+      <div className="min-h-screen bg-[#010308] text-white flex flex-col justify-center items-center relative">
+        <PremiumBackground />
+        <RefreshCw className="h-10 w-10 text-[#59CFFF] animate-spin mb-4 relative z-10" />
+        <span className="text-sm text-white/50 relative z-10">Fetching underwriting analytics...</span>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#071B3B] text-white flex flex-col">
+    <div className="min-h-screen bg-[#010308] text-white flex flex-col relative overflow-hidden">
+      <PremiumBackground />
+      
       {/* Navigation Header */}
-      <header className="border-b border-white/10 bg-[#071B3B]/60 backdrop-blur-md sticky top-0 z-30">
+      <header className="border-b border-white/10 bg-[#010308]/60 backdrop-blur-md sticky top-0 z-30 relative">
         <div className="mx-auto max-w-7xl flex items-center justify-between px-6 py-4">
           <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate('/dashboard')}>
             <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-[#59CFFF] to-[#143c75] flex items-center justify-center">
-              <Cpu className="h-5 w-5 text-[#071B3B]" />
+              <Cpu className="h-5 w-5 text-[#010308]" />
             </div>
             <span className="text-xl font-bold tracking-tight">
               FinTrust<span className="text-[#59CFFF] font-light">AI</span> <span className="text-xs px-2 py-0.5 rounded bg-[#59CFFF]/10 border border-[#59CFFF]/20 text-[#59CFFF] font-mono ml-1">ADMIN</span>
@@ -99,7 +103,7 @@ export default function AdminDashboard() {
       </header>
 
       {/* Main Admin Content */}
-      <main className="flex-1 mx-auto max-w-7xl w-full px-6 py-8 space-y-8">
+      <main className="flex-1 mx-auto max-w-7xl w-full px-6 py-8 space-y-8 relative z-10">
         
         {/* Title */}
         <div className="flex justify-between items-center">
@@ -127,7 +131,7 @@ export default function AdminDashboard() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             
             {/* Total Users */}
-            <div className="glass-card p-5 rounded-xl border-white/5 flex items-center justify-between">
+            <div className="glass-card glass-card-hover p-5 rounded-xl border-white/5 flex items-center justify-between">
               <div>
                 <span className="text-[10px] uppercase text-white/50 font-bold tracking-wider block mb-1">Total Users</span>
                 <span className="text-3xl font-bold font-sans">{stats.totalUsers}</span>
@@ -138,7 +142,7 @@ export default function AdminDashboard() {
             </div>
 
             {/* Assessed Profiles */}
-            <div className="glass-card p-5 rounded-xl border-white/5 flex items-center justify-between">
+            <div className="glass-card glass-card-hover p-5 rounded-xl border-white/5 flex items-center justify-between">
               <div>
                 <span className="text-[10px] uppercase text-white/50 font-bold tracking-wider block mb-1">Assessed Profiles</span>
                 <span className="text-3xl font-bold font-sans">{stats.assessedUsers}</span>
@@ -149,7 +153,7 @@ export default function AdminDashboard() {
             </div>
 
             {/* Average Credit Score */}
-            <div className="glass-card p-5 rounded-xl border-white/5 flex items-center justify-between">
+            <div className="glass-card glass-card-hover p-5 rounded-xl border-white/5 flex items-center justify-between">
               <div>
                 <span className="text-[10px] uppercase text-white/50 font-bold tracking-wider block mb-1">Avg FinTrust Score</span>
                 <span className="text-3xl font-bold font-sans text-emerald-400">{stats.averageScore}</span>
@@ -160,7 +164,7 @@ export default function AdminDashboard() {
             </div>
 
             {/* Loan Approval rate */}
-            <div className="glass-card p-5 rounded-xl border-white/5 flex items-center justify-between">
+            <div className="glass-card glass-card-hover p-5 rounded-xl border-white/5 flex items-center justify-between">
               <div>
                 <span className="text-[10px] uppercase text-white/50 font-bold tracking-wider block mb-1">Inflow Underwriting Approval</span>
                 <span className="text-3xl font-bold font-sans text-[#F5E6D3]">{stats.approvalRate}%</span>
@@ -177,7 +181,7 @@ export default function AdminDashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           
           {/* Risk Breakdown Histogram */}
-          <div className="glass-card p-6 rounded-xl border-white/5 lg:col-span-2 flex flex-col justify-between">
+          <div className="glass-card glass-card-hover p-6 rounded-xl border-white/5 lg:col-span-2 flex flex-col justify-between">
             <h3 className="text-sm font-bold uppercase tracking-wider text-white/70 mb-4 text-left">
               Alternative Credit Risk Distribution
             </h3>
@@ -188,8 +192,8 @@ export default function AdminDashboard() {
                     <XAxis dataKey="name" stroke="rgba(255,255,255,0.4)" fontSize={10} tickLine={false} />
                     <YAxis stroke="rgba(255,255,255,0.4)" fontSize={10} tickLine={false} />
                     <Tooltip 
-                      contentStyle={{ backgroundColor: '#071B3B', borderColor: 'rgba(89,207,255,0.2)', color: '#fff' }}
-                      cursor={{ fill: 'rgba(255,255,255,0.02)' }}
+                      contentStyle={{ backgroundColor: 'rgba(3, 14, 33, 0.85)', borderColor: 'rgba(255, 255, 255, 0.08)', color: '#fff', borderRadius: '8px', backdropFilter: 'blur(10px)' }}
+                      cursor={{ fill: 'rgba(89, 207, 255, 0.04)' }}
                     />
                     <Bar dataKey="count" radius={[4, 4, 0, 0]}>
                       {chartData.map((entry, index) => (
@@ -205,7 +209,7 @@ export default function AdminDashboard() {
           </div>
 
           {/* Underwriting Event Stream */}
-          <div className="glass-card p-6 rounded-xl border-white/5 text-left space-y-4">
+          <div className="glass-card glass-card-hover p-6 rounded-xl border-white/5 text-left space-y-4">
             <h3 className="text-sm font-bold uppercase tracking-wider text-white/70">
               Live Underwriting Logs
             </h3>
@@ -238,7 +242,7 @@ export default function AdminDashboard() {
         </div>
 
         {/* Users Table */}
-        <div className="glass-card p-6 rounded-xl border-white/5 text-left space-y-4">
+        <div className="glass-card glass-card-hover p-6 rounded-xl border-white/5 text-left space-y-4">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
               <h3 className="text-sm font-bold uppercase tracking-wider text-white/70">
