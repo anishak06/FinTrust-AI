@@ -8,4 +8,5 @@ import java.util.Optional;
 @Repository
 public interface AiRecommendationRepository extends JpaRepository<AiRecommendation, Long> {
     Optional<AiRecommendation> findFirstByUserIdOrderByTimestampDesc(Long userId);
+    Optional<AiRecommendation> findByUserIdAndMonthAndYear(Long userId, String month, Integer year);
 }

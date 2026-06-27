@@ -20,4 +20,11 @@ public class AuditLogService {
         log.setStatus(status);
         auditLogRepository.save(log);
     }
+
+    public long getFailedLoginCountWithinHour(Long userId) {
+        if (userId == null) return 0;
+        return auditLogRepository.countByUserIdAndActionAndTimestampAfter(
+                userId, "USER_LOGIN_FAILED", java.time.LocalDateTime.now().minusHours(1)
+        );
+    }
 }

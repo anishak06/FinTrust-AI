@@ -9,7 +9,10 @@ import Signup from './pages/Signup';
 import Dashboard from './pages/Dashboard';
 import DataCollection from './pages/DataCollection';
 import AdminDashboard from './pages/AdminDashboard';
-import SupportingDocuments from './pages/SupportingDocuments';
+import LenderLogin from './pages/LenderLogin';
+import LenderSignup from './pages/LenderSignup';
+import LenderForgotPassword from './pages/LenderForgotPassword';
+import LenderDashboard from './pages/LenderDashboard';
 
 // Route Guards
 function PrivateRoute({ children }) {
@@ -40,6 +43,20 @@ function AdminRoute({ children }) {
   return isAuthenticated && isAdmin ? children : <Navigate to="/dashboard" replace />;
 }
 
+function LenderRoute({ children }) {
+  const { isAuthenticated, isLender, loading } = useAuth();
+  
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#010308] flex items-center justify-center text-white">
+        <div className="animate-pulse">Loading secure session...</div>
+      </div>
+    );
+  }
+  
+  return isAuthenticated && isLender ? children : <Navigate to="/lender/login" replace />;
+}
+
 function App() {
   return (
     <AuthProvider>
@@ -49,6 +66,9 @@ function App() {
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
+          <Route path="/lender/login" element={<LenderLogin />} />
+          <Route path="/lender/signup" element={<LenderSignup />} />
+          <Route path="/lender/forgot-password" element={<LenderForgotPassword />} />
 
           {/* Secured Borrower Routes */}
           <Route 
@@ -67,12 +87,14 @@ function App() {
               </PrivateRoute>
             } 
           />
+
+          {/* Secured Lender Routes */}
           <Route 
-            path="/supporting-documents" 
+            path="/lender/dashboard" 
             element={
-              <PrivateRoute>
-                <SupportingDocuments />
-              </PrivateRoute>
+              <LenderRoute>
+                <LenderDashboard />
+              </LenderRoute>
             } 
           />
 

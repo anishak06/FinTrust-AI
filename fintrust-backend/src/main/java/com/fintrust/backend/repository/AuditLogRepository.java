@@ -8,4 +8,5 @@ import java.util.List;
 @Repository
 public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
     List<AuditLog> findTop25ByOrderByTimestampDesc();
+    long countByUserIdAndActionAndTimestampAfter(Long userId, String action, java.time.LocalDateTime timestamp);
 }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ClipboardList, DollarSign, CreditCard, Sparkles, HelpCircle, Briefcase, FileText, Check, ArrowLeft } from 'lucide-react';
@@ -9,7 +9,12 @@ export default function DataCollection() {
   const { token, logout } = useAuth();
   const navigate = useNavigate();
 
-  // Inputs
+  // Helper to get current Month (Title case) and Year
+  const currentDate = new Date();
+  const currentMonthName = currentDate.toLocaleString('default', { month: 'long' });
+  const titleCaseMonth = currentMonthName.charAt(0).toUpperCase() + currentMonthName.slice(1).toLowerCase();
+  const currentYearNum = currentDate.getFullYear();
+
   const [monthlyIncome, setMonthlyIncome] = useState('');
   const [monthlyExpenses, setMonthlyExpenses] = useState('');
   const [monthlySavings, setMonthlySavings] = useState('');
@@ -18,11 +23,33 @@ export default function DataCollection() {
   const [employmentType, setEmploymentType] = useState('SALARIED');
   const [occupation, setOccupation] = useState('');
   const [existingLoans, setExistingLoans] = useState('');
+  const [month, setMonth] = useState(titleCaseMonth);
+  const [year, setYear] = useState(currentYearNum.toString());
+  const [age, setAge] = useState('');
+  const [city, setCity] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
 
   // UI state
   const [validationError, setValidationError] = useState('');
   const [isAssessing, setIsAssessing] = useState(false);
   const [assessmentStep, setAssessmentStep] = useState(0);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('fintrust_financial_data');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed.totalMonthlyExpenses !== undefined) {
+          setMonthlyExpenses(parsed.totalMonthlyExpenses.toString());
+        }
+        if (parsed.totalMonthlySavings !== undefined) {
+          setMonthlySavings(parsed.totalMonthlySavings.toString());
+        }
+      }
+    } catch (e) {
+      console.error("Failed to parse local financial data", e);
+    }
+  }, []);
 
   const steps = [
     'Parsing transaction records...',
@@ -99,7 +126,12 @@ export default function DataCollection() {
           upiTransactionFrequency: upi,
           employmentType,
           occupation,
-          existingLoans: loans
+          existingLoans: loans,
+          month,
+          year: parseInt(year),
+          age: parseInt(age) || 27,
+          city: city || 'Mumbai',
+          phoneNumber: phoneNumber || '+91-9876543210'
         })
       });
 
@@ -230,6 +262,38 @@ export default function DataCollection() {
               />
             </div>
 
+            {/* Assessment Month */}
+            <div className="space-y-1.5 text-left">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-white/40 flex items-center gap-1.5">
+                Assessment Month
+              </label>
+              <select
+                value={month}
+                onChange={(e) => setMonth(e.target.value)}
+                className="w-full px-4 py-3 rounded-lg glass-input text-xs bg-[#030E21] appearance-none cursor-pointer"
+              >
+                {["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"].map(m => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Assessment Year */}
+            <div className="space-y-1.5 text-left">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-white/40 flex items-center gap-1.5">
+                Assessment Year
+              </label>
+              <select
+                value={year}
+                onChange={(e) => setYear(e.target.value)}
+                className="w-full px-4 py-3 rounded-lg glass-input text-xs bg-[#030E21] appearance-none cursor-pointer"
+              >
+                {["2024", "2025", "2026", "2027"].map(y => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+            </div>
+
             {/* Expenses */}
             <div className="space-y-1.5 text-left">
               <label className="text-[10px] font-bold uppercase tracking-wider text-white/40 flex items-center gap-1.5">
@@ -301,10 +365,57 @@ export default function DataCollection() {
                 <FileText className="h-3.5 w-3.5 text-[#59CFFF]" /> Occupation / Job Role
               </label>
               <input
-                type="text"
+                 type="text"
                 value={occupation}
                 onChange={(e) => setOccupation(e.target.value)}
                 placeholder="e.g. Software Engineer, Shopkeeper"
+                className="w-full px-4 py-3 rounded-lg glass-input text-xs"
+                required
+              />
+            </div>
+
+            {/* Age */}
+            <div className="space-y-1.5 text-left">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-white/40 flex items-center gap-1.5">
+                Age
+              </label>
+              <input
+                type="number"
+                value={age}
+                onChange={(e) => setAge(e.target.value)}
+                placeholder="e.g. 27"
+                className="w-full px-4 py-3 rounded-lg glass-input text-xs"
+                required
+                min="18"
+                max="120"
+              />
+            </div>
+
+            {/* City */}
+            <div className="space-y-1.5 text-left">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-white/40 flex items-center gap-1.5">
+                City
+              </label>
+              <input
+                type="text"
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+                placeholder="e.g. New Delhi"
+                className="w-full px-4 py-3 rounded-lg glass-input text-xs"
+                required
+              />
+            </div>
+
+            {/* Phone Number */}
+            <div className="space-y-1.5 text-left">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-white/40 flex items-center gap-1.5">
+                Phone Number
+              </label>
+              <input
+                type="text"
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.target.value)}
+                placeholder="e.g. +91 9876543210"
                 className="w-full px-4 py-3 rounded-lg glass-input text-xs"
                 required
               />

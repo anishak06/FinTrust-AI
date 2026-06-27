@@ -7,7 +7,12 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "loan_assessments")
+@Table(
+    name = "loan_assessments",
+    uniqueConstraints = {
+        @UniqueConstraint(columnNames = {"userId", "assessment_month", "assessment_year"})
+    }
+)
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -19,6 +24,12 @@ public class LoanAssessment {
 
     @Column(nullable = false)
     private Long userId;
+
+    @Column(name = "assessment_month", nullable = false)
+    private String month;
+
+    @Column(name = "assessment_year", nullable = false)
+    private Integer year;
 
     private Boolean eligibility;
     private Double loanAmount;

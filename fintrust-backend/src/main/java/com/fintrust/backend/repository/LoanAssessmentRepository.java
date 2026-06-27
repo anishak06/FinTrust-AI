@@ -8,4 +8,5 @@ import java.util.Optional;
 @Repository
 public interface LoanAssessmentRepository extends JpaRepository<LoanAssessment, Long> {
     Optional<LoanAssessment> findFirstByUserIdOrderByCreatedAtDesc(Long userId);
+    Optional<LoanAssessment> findByUserIdAndMonthAndYear(Long userId, String month, Integer year);
 }

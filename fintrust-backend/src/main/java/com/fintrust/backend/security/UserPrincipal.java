@@ -29,6 +29,15 @@ public class UserPrincipal implements UserDetails {
         );
     }
 
+    public static UserPrincipal create(com.fintrust.backend.model.Lender lender) {
+        return new UserPrincipal(
+                lender.getId(),
+                lender.getEmail(),
+                lender.getPassword(),
+                Collections.singletonList(new SimpleGrantedAuthority(lender.getRole()))
+        );
+    }
+
     public Long getId() {
         return id;
     }

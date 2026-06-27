@@ -21,6 +21,8 @@ import java.util.*;
 @RequestMapping("/api/credit")
 public class CreditController {
 
+    private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(CreditController.class);
+
     @Autowired
     private FinancialDataRepository financialDataRepository;
 
@@ -34,9 +36,6 @@ public class CreditController {
     private AiRecommendationRepository aiRecommendationRepository;
 
     @Autowired
-    private UploadedBillRepository uploadedBillRepository;
-
-    @Autowired
     private UserRepository userRepository;
 
     @Autowired
@@ -45,12 +44,17 @@ public class CreditController {
     @Autowired
     private AuditLogService auditLogService;
 
+    @Autowired
+    private com.fintrust.backend.repository.QrVerificationTokenRepository qrVerificationTokenRepository;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @PostMapping("/assess")
     public ResponseEntity<?> assessCredit(@RequestBody Map<String, Object> request) {
+        logger.info("[assessCredit] Request Received");
         UserPrincipal principal = (UserPrincipal) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long userId = principal.getId();
+        logger.info("[assessCredit] Authentication Successful for userId={}", userId);
 
         try {
             // 1. Ingest inputs safely
@@ -62,36 +66,85 @@ public class CreditController {
             String occupation = request.get("occupation").toString();
             String selfReportedConsistency = request.get("utilityBillConsistency").toString();
 
+            LocalDateTime now = LocalDateTime.now();
+            String month = request.containsKey("month") ? request.get("month").toString() : now.getMonth().toString().substring(0, 1) + now.getMonth().toString().substring(1).toLowerCase();
+            int year = request.containsKey("year") ? Integer.parseInt(request.get("year").toString()) : now.getYear();
+            logger.info("[assessCredit] Financial Data Loaded: userId={}, month={}, year={}, income={}, expenses={}, savings={}, transactions={}", userId, month, year, income, expenses, savings, transactions);
+
+            // 2. Fraud Detection Checks
+            logger.info("[assessCredit] Fraud Detection Checks Started for userId={}", userId);
+            int fraudIndicators = 0;
+            
+            // Income much lower than expenses
+            if (expenses > income * 1.5) {
+                fraudIndicators++;
+            }
+            // Impossible financial values
+            if (income < 0 || expenses < 0 || savings < 0 || transactions < 0) {
+                fraudIndicators += 2;
+            }
+            // Multiple accounts using same identity
+            User currentUser = userRepository.findById(userId).orElse(null);
+            if (currentUser != null) {
+                String fullName = currentUser.getFullName();
+                long dupNameCount = userRepository.findAll().stream()
+                        .filter(u -> u.getFullName().equalsIgnoreCase(fullName) && !u.getId().equals(userId))
+                        .count();
+                if (dupNameCount > 0) {
+                    fraudIndicators++;
+                }
+            }
+            // Sudden unexplained income spikes
+            Optional<FinancialData> prevDataOpt = financialDataRepository.findFirstByUserIdOrderByCreatedAtDesc(userId);
+            if (prevDataOpt.isPresent()) {
+                double prevIncome = prevDataOpt.get().getIncome();
+                if (prevIncome > 0 && income > prevIncome * 3.0) {
+                    fraudIndicators++;
+                }
+            }
+            // Suspicious / Excessive failed logins (Check audit logs)
+            long failedLogins = auditLogService.getFailedLoginCountWithinHour(userId);
+            if (failedLogins > 3) {
+                fraudIndicators++;
+            }
+
+            String fraudRiskScore = "Low";
+            if (fraudIndicators >= 3) {
+                fraudRiskScore = "High";
+            } else if (fraudIndicators >= 1) {
+                fraudRiskScore = "Medium";
+            }
+            logger.info("[assessCredit] Fraud Detection Completed for userId={}, Risk={}", userId, fraudRiskScore);
+
             // Save occupation back to User profile if not set
+            int age = request.containsKey("age") ? Integer.parseInt(request.get("age").toString()) : 27;
+            String city = request.containsKey("city") ? request.get("city").toString() : "Mumbai";
+            String phoneNumber = request.containsKey("phoneNumber") ? request.get("phoneNumber").toString() : "+91-9876543210";
+
             userRepository.findById(userId).ifPresent(user -> {
                 if (!StringUtils.hasText(user.getOccupation())) {
                     user.setOccupation(occupation);
-                    userRepository.save(user);
                 }
+                user.setMonthlyIncome(income);
+                user.setEmploymentType(employmentType);
+                user.setAge(age);
+                user.setCity(city);
+                user.setPhoneNumber(phoneNumber);
+                userRepository.save(user);
             });
 
-            // 2. Bill Payment Consistency calculation from DB uploaded bills
+            // 3. Bill Payment Consistency calculation (Self-reported only)
             double billConsistencyPct = 100.0;
-            List<UploadedBill> uploadedBills = uploadedBillRepository.findByUserIdOrderByUploadDateDesc(userId);
-            
-            if (!uploadedBills.isEmpty()) {
-                long totalBills = uploadedBills.size();
-                long onTimeBills = uploadedBills.stream()
-                        .filter(b -> "PAID_ON_TIME".equalsIgnoreCase(b.getPaymentStatus()))
-                        .count();
-                billConsistencyPct = ((double) onTimeBills / totalBills) * 100.0;
+            if ("CONSISTENT".equalsIgnoreCase(selfReportedConsistency)) {
+                billConsistencyPct = 100.0;
+            } else if ("SEMI_CONSISTENT".equalsIgnoreCase(selfReportedConsistency)) {
+                billConsistencyPct = 80.0;
             } else {
-                // Fallback to self-reported consistency
-                if ("CONSISTENT".equalsIgnoreCase(selfReportedConsistency)) {
-                    billConsistencyPct = 100.0;
-                } else if ("SEMI_CONSISTENT".equalsIgnoreCase(selfReportedConsistency)) {
-                    billConsistencyPct = 80.0;
-                } else {
-                    billConsistencyPct = 40.0;
-                }
+                billConsistencyPct = 40.0;
             }
 
-            // 3. Scoring Points Calculations (Deterministic Weighted Engine)
+            // 4. Scoring Points Calculations (Deterministic Weighted Engine)
+            logger.info("[assessCredit] Credit Score Calculation Started for userId={}", userId);
             
             // A. Savings Ratio (30%)
             double savingsRatio = savings / (income > 0 ? income : 1.0);
@@ -158,7 +211,7 @@ public class CreditController {
             breakdownArray.add(createBreakdownNode("Expense Management (15%)", expensePoints, "Expense ratio is " + Math.round(expenseRatio * 100) + "% of income"));
             breakdownArray.add(createBreakdownNode("Digital Transactions (10%)", txnPoints, "Digital footprint verified at " + transactions + " txns/month"));
 
-            // 4. Loan Eligibility Underwriting (Backend Only)
+            // 5. Loan Eligibility Underwriting (Backend Only)
             boolean loanEligible = score >= 550;
             double suggestedAmount = 0.0;
             String riskCategory = "High";
@@ -173,11 +226,14 @@ public class CreditController {
                 suggestedAmount = savings * 4.0;
                 riskCategory = "High";
             }
+            logger.info("[assessCredit] Loan Eligibility Generated for userId={}: eligible={}, suggestedAmount={}, riskCategory={}", userId, loanEligible, suggestedAmount, riskCategory);
 
-            // 5. Database Persistence Loops
-            // Save FinancialData
-            FinancialData fd = new FinancialData();
+            // 6. Database Persistence Loops
+            // Upsert FinancialData
+            FinancialData fd = financialDataRepository.findByUserIdAndMonthAndYear(userId, month, year).orElse(new FinancialData());
             fd.setUserId(userId);
+            fd.setMonth(month);
+            fd.setYear(year);
             fd.setIncome(income);
             fd.setSavings(savings);
             fd.setExpenses(expenses);
@@ -186,55 +242,69 @@ public class CreditController {
             fd.setPaymentConsistency(billConsistencyPct);
             financialDataRepository.save(fd);
 
-            // Save CreditScore
-            CreditScore cs = new CreditScore();
+            // Upsert CreditScore
+            CreditScore cs = creditScoreRepository.findByUserIdAndMonthAndYear(userId, month, year).orElse(new CreditScore());
             cs.setUserId(userId);
+            cs.setMonth(month);
+            cs.setYear(year);
             cs.setScore(score);
             cs.setRiskLevel(riskLevel);
+            cs.setFraudRisk(fraudRiskScore);
             cs.setScoreBreakdown(objectMapper.writeValueAsString(breakdownArray));
             creditScoreRepository.save(cs);
 
-            // Save LoanAssessment
-            LoanAssessment la = new LoanAssessment();
+            // Upsert LoanAssessment
+            LoanAssessment la = loanAssessmentRepository.findByUserIdAndMonthAndYear(userId, month, year).orElse(new LoanAssessment());
             la.setUserId(userId);
+            la.setMonth(month);
+            la.setYear(year);
             la.setEligibility(loanEligible);
             la.setLoanAmount(suggestedAmount);
             la.setRiskCategory(riskCategory);
             loanAssessmentRepository.save(la);
+            logger.info("[assessCredit] Database Saved Successfully for userId={}", userId);
 
-            // 6. Invoke Gemini AI (Insights Only, PII Strip Enforced)
+            // 7. Invoke Gemini AI (Insights Only, PII Strip Enforced)
+            logger.info("[assessCredit] Gemini Request for userId={}", userId);
             AiRecommendation rec = geminiService.generateFinancialInsights(
-                    userId, score, income, savings, expenses, billConsistencyPct, transactions, loanEligible, suggestedAmount
+                    userId, score, income, savings, expenses, billConsistencyPct, transactions, loanEligible, suggestedAmount, month, year
             );
+            logger.info("[assessCredit] Gemini Response Received for userId={}", userId);
 
-            // 7. Audit Logging
+            // 8. Audit Logging
             auditLogService.logAction(userId, "CREDIT_SCORE_GENERATION", "SUCCESS");
             auditLogService.logAction(userId, "LOAN_ELIGIBILITY_CHECK", "SUCCESS");
             auditLogService.logAction(userId, "RECOMMENDATION_GENERATION", "SUCCESS");
 
-            // 8. Return Consolidated backward-compatible dashboard response
+            // 9. Return Consolidated backward-compatible dashboard response
             Map<String, Object> dashboardRes = buildConsolidatedResponse(fd, cs, la, rec);
+            logger.info("[assessCredit] Response Returned for userId={}", userId);
             return ResponseEntity.ok(dashboardRes);
 
         } catch (Exception e) {
+            logger.error("[assessCredit] Exception occurred during credit assessment", e);
             auditLogService.logAction(userId, "CREDIT_ASSESS_FAILED", "EXCEPTION");
-            return ResponseEntity.badRequest().body(Map.of("error", "Invalid assessment payload fields or parsing error."));
+            return ResponseEntity.status(500).body(Map.of("error", "Unexpected Internal Server Error: " + e.getMessage()));
         }
     }
 
     @GetMapping("/latest")
-    public ResponseEntity<?> getLatestAssessment() {
+    public ResponseEntity<?> getLatestAssessment(@RequestParam(required = false) String month, @RequestParam(required = false) Integer year) {
         UserPrincipal principal = (UserPrincipal) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long userId = principal.getId();
 
-        Optional<CreditScore> latestScore = creditScoreRepository.findFirstByUserIdOrderByCalculationDateDesc(userId);
+        LocalDateTime now = LocalDateTime.now();
+        String targetMonth = month != null ? month : now.getMonth().toString().substring(0, 1) + now.getMonth().toString().substring(1).toLowerCase();
+        Integer targetYear = year != null ? year : now.getYear();
+
+        Optional<CreditScore> latestScore = creditScoreRepository.findByUserIdAndMonthAndYear(userId, targetMonth, targetYear);
         if (latestScore.isEmpty()) {
-            return ResponseEntity.ok(Map.of("message", "No assessments found. Please check your eligibility first."));
+            return ResponseEntity.ok(Map.of("message", "No assessments found for " + targetMonth + " " + targetYear + "."));
         }
 
-        FinancialData latestData = financialDataRepository.findFirstByUserIdOrderByCreatedAtDesc(userId).orElse(new FinancialData());
-        LoanAssessment latestLoan = loanAssessmentRepository.findFirstByUserIdOrderByCreatedAtDesc(userId).orElse(new LoanAssessment());
-        AiRecommendation latestRec = aiRecommendationRepository.findFirstByUserIdOrderByTimestampDesc(userId).orElse(new AiRecommendation());
+        FinancialData latestData = financialDataRepository.findByUserIdAndMonthAndYear(userId, targetMonth, targetYear).orElse(new FinancialData());
+        LoanAssessment latestLoan = loanAssessmentRepository.findByUserIdAndMonthAndYear(userId, targetMonth, targetYear).orElse(new LoanAssessment());
+        AiRecommendation latestRec = aiRecommendationRepository.findByUserIdAndMonthAndYear(userId, targetMonth, targetYear).orElse(new AiRecommendation());
 
         return ResponseEntity.ok(buildConsolidatedResponse(latestData, latestScore.get(), latestLoan, latestRec));
     }
@@ -251,6 +321,16 @@ public class CreditController {
             Map<String, Object> map = new HashMap<>();
             map.put("score", cs.getScore());
             map.put("createdAt", cs.getCalculationDate());
+            map.put("month", cs.getMonth());
+            map.put("year", cs.getYear());
+            
+            Optional<FinancialData> fdOpt = financialDataRepository.findByUserIdAndMonthAndYear(userId, cs.getMonth(), cs.getYear());
+            if (fdOpt.isPresent()) {
+                map.put("income", fdOpt.get().getIncome());
+                map.put("expenses", fdOpt.get().getExpenses());
+                map.put("savings", fdOpt.get().getSavings());
+            }
+
             list.add(map);
         }
         return ResponseEntity.ok(list);
@@ -289,5 +369,86 @@ public class CreditController {
         map.put("weaknesses", rec.getWeaknesses());
         map.put("createdAt", cs.getCalculationDate());
         return map;
+    }
+
+    @GetMapping(value = "/verify-profile/{nonce}", produces = "text/html")
+    public ResponseEntity<String> verifyProfile(@PathVariable String nonce) {
+        Optional<QrVerificationToken> tokenOpt = qrVerificationTokenRepository.findByToken(nonce);
+        if (tokenOpt.isEmpty()) {
+            return ResponseEntity.status(404).body("<html><body><h2>Invalid or expired token</h2></body></html>");
+        }
+
+        QrVerificationToken token = tokenOpt.get();
+        if (token.isUsed() || token.getExpiresAt().isBefore(LocalDateTime.now())) {
+            return ResponseEntity.status(400).body("<html><body><h2>Token expired or already used</h2></body></html>");
+        }
+
+        // Mark as used
+        token.setUsed(true);
+        qrVerificationTokenRepository.save(token);
+
+        Long userId = token.getUserId();
+        User user = userRepository.findById(userId).orElseThrow();
+
+        // Get latest assessment
+        List<CreditScore> scoreHistory = creditScoreRepository.findByUserIdOrderByCalculationDateDesc(userId);
+        if (scoreHistory.isEmpty()) {
+            return ResponseEntity.ok("<html><body><h2>Profile Verified: " + user.getFullName() + "</h2><p>No credit assessments found.</p></body></html>");
+        }
+
+        CreditScore latestScore = scoreHistory.get(0);
+        String healthStatus = latestScore.getScore() >= 750 ? "Excellent" : (latestScore.getScore() >= 650 ? "Good" : "Fair/Poor");
+
+        String html = "<!DOCTYPE html>\n" +
+                "<html lang=\"en\">\n" +
+                "<head>\n" +
+                "    <meta charset=\"UTF-8\">\n" +
+                "    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n" +
+                "    <title>Verified Financial Profile</title>\n" +
+                "    <style>\n" +
+                "        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; color: #1f2937; margin: 0; padding: 20px; display: flex; justify-content: center; }\n" +
+                "        .card { background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); padding: 30px; max-width: 500px; width: 100%; }\n" +
+                "        .header { text-align: center; border-bottom: 1px solid #e5e7eb; padding-bottom: 20px; margin-bottom: 20px; }\n" +
+                "        .header h1 { margin: 0 0 10px 0; color: #111827; }\n" +
+                "        .badge { display: inline-block; padding: 6px 12px; border-radius: 9999px; font-weight: bold; font-size: 0.875rem; background-color: #dcfce7; color: #166534; }\n" +
+                "        .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }\n" +
+                "        .stat-box { background: #f9fafb; padding: 15px; border-radius: 8px; text-align: center; }\n" +
+                "        .stat-label { font-size: 0.875rem; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 5px; }\n" +
+                "        .stat-value { font-size: 1.5rem; font-weight: bold; color: #111827; }\n" +
+                "    </style>\n" +
+                "</head>\n" +
+                "<body>\n" +
+                "    <div class=\"card\">\n" +
+                "        <div class=\"header\">\n" +
+                "            <h1>" + user.getFullName() + "</h1>\n" +
+                "            <p>" + user.getEmail() + "</p>\n" +
+                "            <div class=\"badge\">Verified User</div>\n" +
+                "        </div>\n" +
+                "        <div class=\"stat-grid\">\n" +
+                "            <div class=\"stat-box\">\n" +
+                "                <div class=\"stat-label\">Alternative Score</div>\n" +
+                "                <div class=\"stat-value\">" + latestScore.getScore() + "</div>\n" +
+                "            </div>\n" +
+                "            <div class=\"stat-box\">\n" +
+                "                <div class=\"stat-label\">Risk Tier</div>\n" +
+                "                <div class=\"stat-value\">" + latestScore.getRiskLevel() + "</div>\n" +
+                "            </div>\n" +
+                "            <div class=\"stat-box\">\n" +
+                "                <div class=\"stat-label\">Health Status</div>\n" +
+                "                <div class=\"stat-value\">" + healthStatus + "</div>\n" +
+                "            </div>\n" +
+                "            <div class=\"stat-box\">\n" +
+                "                <div class=\"stat-label\">Last Updated</div>\n" +
+                "                <div class=\"stat-value\" style=\"font-size: 1rem;\">" + latestScore.getCalculationDate().toLocalDate().toString() + "</div>\n" +
+                "            </div>\n" +
+                "        </div>\n" +
+                "        <div style=\"text-align: center; margin-top: 30px; font-size: 0.875rem; color: #9ca3af;\">\n" +
+                "            Securely generated by FinTrust AI\n" +
+                "        </div>\n" +
+                "    </div>\n" +
+                "</body>\n" +
+                "</html>";
+
+        return ResponseEntity.ok(html);
     }
 }
