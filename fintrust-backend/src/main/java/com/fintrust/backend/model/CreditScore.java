@@ -10,7 +10,7 @@ import java.time.LocalDateTime;
 @Table(
     name = "credit_scores",
     uniqueConstraints = {
-        @UniqueConstraint(columnNames = {"userId", "month", "year"})
+        @UniqueConstraint(columnNames = {"userId", "assessment_month", "assessment_year"})
     }
 )
 @Data
@@ -25,14 +25,15 @@ public class CreditScore {
     @Column(nullable = false)
     private Long userId;
 
-    @Column(nullable = false)
+    @Column(name = "assessment_month", nullable = false)
     private String month;
 
-    @Column(nullable = false)
+    @Column(name = "assessment_year", nullable = false)
     private Integer year;
 
     private Integer score;
     private String riskLevel;
+    private String fraudRisk; // Low, Medium, High
     
     private Integer traditionalScore;
     private Double maxLendableAmount;

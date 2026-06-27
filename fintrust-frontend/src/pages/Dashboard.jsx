@@ -45,6 +45,7 @@ export default function Dashboard() {
   // QR Modal State
   const [qrModalOpen, setQrModalOpen] = useState(false);
   const [qrData, setQrData] = useState('');
+  const [rawConsentToken, setRawConsentToken] = useState('');
   const [qrLoading, setQrLoading] = useState(false);
   const [qrError, setQrError] = useState('');
 
@@ -194,6 +195,7 @@ export default function Dashboard() {
     setQrLoading(true);
     setQrError('');
     setQrData('');
+    setRawConsentToken('');
     try {
       const res = await fetch('http://localhost:8080/api/user/qr-code', {
         headers: { 'Authorization': `Bearer ${token}` }
@@ -201,6 +203,7 @@ export default function Dashboard() {
       if (res.ok) {
         const data = await res.json();
         setQrData(data.qrCode);
+        setRawConsentToken(data.token);
       } else {
         setQrError('Failed to generate QR Code. Please try again.');
       }
@@ -1133,9 +1136,17 @@ export default function Dashboard() {
               <div className="h-48 w-48 border border-[#D1495B]/30 rounded-xl flex items-center justify-center bg-[#D1495B]/10 text-[#D1495B] text-xs text-center p-4">
                 {qrError}
               </div>
-            ) : qrData ? (
-              <div className="bg-white p-3 rounded-xl shadow-[0_0_30px_rgba(89,207,255,0.2)]">
-                <img src={qrData} alt="Profile QR Code" className="h-48 w-48" />
+             ) : qrData ? (
+              <div className="space-y-4 flex flex-col items-center">
+                <div className="bg-white p-3 rounded-xl shadow-[0_0_30px_rgba(89,207,255,0.2)]">
+                  <img src={qrData} alt="Profile QR Code" className="h-48 w-48" />
+                </div>
+                {rawConsentToken && (
+                  <div className="w-full bg-[#030E21]/50 border border-white/10 rounded-lg p-3 select-all cursor-pointer">
+                    <span className="text-[9px] uppercase tracking-wider text-white/40 block mb-1">Text Consent Token (Copy)</span>
+                    <code className="text-xs font-mono text-[#59CFFF] break-all">{rawConsentToken}</code>
+                  </div>
+                )}
               </div>
             ) : null}
 

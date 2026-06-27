@@ -49,7 +49,12 @@ public class GeminiService {
 
         if (!StringUtils.hasText(geminiKey)) {
             logger.info("Gemini API key is not configured. Falling back to local rule-based insights engine.");
-            return calculateLocalInsights(userId, score, income, savings, expenses, consistency, transactions, loanEligible, suggestedLoanAmount, month, year);
+            try {
+                return calculateLocalInsights(userId, score, income, savings, expenses, consistency, transactions, loanEligible, suggestedLoanAmount, month, year);
+            } catch (Exception ex) {
+                logger.error("Local insights fallback database write failed. Returning transient stub.", ex);
+                return createTransientStub(userId, month, year);
+            }
         }
 
         try {
@@ -58,8 +63,25 @@ public class GeminiService {
             return parseInsightsResponse(userId, response, month, year);
         } catch (Exception e) {
             logger.error("Error generating insights via Gemini. Falling back to local engine.", e);
-            return calculateLocalInsights(userId, score, income, savings, expenses, consistency, transactions, loanEligible, suggestedLoanAmount, month, year);
+            try {
+                return calculateLocalInsights(userId, score, income, savings, expenses, consistency, transactions, loanEligible, suggestedLoanAmount, month, year);
+            } catch (Exception ex) {
+                logger.error("Local insights fallback database write failed. Returning transient stub.", ex);
+                return createTransientStub(userId, month, year);
+            }
         }
+    }
+
+    private AiRecommendation createTransientStub(Long userId, String month, Integer year) {
+        AiRecommendation stub = new AiRecommendation();
+        stub.setUserId(userId);
+        stub.setMonth(month);
+        stub.setYear(year);
+        stub.setGeminiInsights("AI Insights are currently unavailable.");
+        stub.setStrengths("[]");
+        stub.setWeaknesses("[]");
+        stub.setRecommendations("[]");
+        return stub;
     }
 
     private String buildInsightsPrompt(

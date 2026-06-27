@@ -10,7 +10,7 @@ import java.time.LocalDateTime;
 @Table(
     name = "financial_data",
     uniqueConstraints = {
-        @UniqueConstraint(columnNames = {"userId", "month", "year"})
+        @UniqueConstraint(columnNames = {"userId", "assessment_month", "assessment_year"})
     }
 )
 @Data
@@ -25,10 +25,10 @@ public class FinancialData {
     @Column(nullable = false)
     private Long userId;
 
-    @Column(nullable = false)
+    @Column(name = "assessment_month", nullable = false)
     private String month;
 
-    @Column(nullable = false)
+    @Column(name = "assessment_year", nullable = false)
     private Integer year;
 
     private Double income;

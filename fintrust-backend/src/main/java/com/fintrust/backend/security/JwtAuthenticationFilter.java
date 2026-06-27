@@ -35,15 +35,25 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             if (StringUtils.hasText(jwt) && tokenProvider.validateToken(jwt)) {
                 Long userId = tokenProvider.getUserIdFromJWT(jwt);
 
-                // Check session interlocking
                 java.util.Optional<com.fintrust.backend.model.ActiveSession> sessionOpt = activeSessionRepository.findByUserIdAndIsValidTrue(userId);
                 if (sessionOpt.isPresent() && sessionOpt.get().getSessionToken().equals(jwt)) {
-                    UserDetails userDetails = customUserDetailsService.loadUserById(userId);
-                    UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                            userDetails, null, userDetails.getAuthorities());
-                    authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                    com.fintrust.backend.model.ActiveSession session = sessionOpt.get();
+                    // 15-minute automatic session timeout
+                    if (session.getLastActive().isBefore(java.time.LocalDateTime.now().minusMinutes(15))) {
+                        session.setValid(false);
+                        activeSessionRepository.save(session);
+                    } else {
+                        session.setLastActive(java.time.LocalDateTime.now());
+                        activeSessionRepository.save(session);
 
-                    SecurityContextHolder.getContext().setAuthentication(authentication);
+                        String role = tokenProvider.getRoleFromJWT(jwt);
+                        UserDetails userDetails = customUserDetailsService.loadUserByIdAndRole(userId, role);
+                        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                                userDetails, null, userDetails.getAuthorities());
+                        authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+
+                        SecurityContextHolder.getContext().setAuthentication(authentication);
+                    }
                 }
             }
         } catch (Exception ex) {

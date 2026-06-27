@@ -21,6 +21,8 @@ import java.util.*;
 @RequestMapping("/api/credit")
 public class CreditController {
 
+    private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(CreditController.class);
+
     @Autowired
     private FinancialDataRepository financialDataRepository;
 
@@ -49,8 +51,10 @@ public class CreditController {
 
     @PostMapping("/assess")
     public ResponseEntity<?> assessCredit(@RequestBody Map<String, Object> request) {
+        logger.info("[assessCredit] Request Received");
         UserPrincipal principal = (UserPrincipal) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long userId = principal.getId();
+        logger.info("[assessCredit] Authentication Successful for userId={}", userId);
 
         try {
             // 1. Ingest inputs safely
@@ -65,16 +69,71 @@ public class CreditController {
             LocalDateTime now = LocalDateTime.now();
             String month = request.containsKey("month") ? request.get("month").toString() : now.getMonth().toString().substring(0, 1) + now.getMonth().toString().substring(1).toLowerCase();
             int year = request.containsKey("year") ? Integer.parseInt(request.get("year").toString()) : now.getYear();
+            logger.info("[assessCredit] Financial Data Loaded: userId={}, month={}, year={}, income={}, expenses={}, savings={}, transactions={}", userId, month, year, income, expenses, savings, transactions);
+
+            // 2. Fraud Detection Checks
+            logger.info("[assessCredit] Fraud Detection Checks Started for userId={}", userId);
+            int fraudIndicators = 0;
+            
+            // Income much lower than expenses
+            if (expenses > income * 1.5) {
+                fraudIndicators++;
+            }
+            // Impossible financial values
+            if (income < 0 || expenses < 0 || savings < 0 || transactions < 0) {
+                fraudIndicators += 2;
+            }
+            // Multiple accounts using same identity
+            User currentUser = userRepository.findById(userId).orElse(null);
+            if (currentUser != null) {
+                String fullName = currentUser.getFullName();
+                long dupNameCount = userRepository.findAll().stream()
+                        .filter(u -> u.getFullName().equalsIgnoreCase(fullName) && !u.getId().equals(userId))
+                        .count();
+                if (dupNameCount > 0) {
+                    fraudIndicators++;
+                }
+            }
+            // Sudden unexplained income spikes
+            Optional<FinancialData> prevDataOpt = financialDataRepository.findFirstByUserIdOrderByCreatedAtDesc(userId);
+            if (prevDataOpt.isPresent()) {
+                double prevIncome = prevDataOpt.get().getIncome();
+                if (prevIncome > 0 && income > prevIncome * 3.0) {
+                    fraudIndicators++;
+                }
+            }
+            // Suspicious / Excessive failed logins (Check audit logs)
+            long failedLogins = auditLogService.getFailedLoginCountWithinHour(userId);
+            if (failedLogins > 3) {
+                fraudIndicators++;
+            }
+
+            String fraudRiskScore = "Low";
+            if (fraudIndicators >= 3) {
+                fraudRiskScore = "High";
+            } else if (fraudIndicators >= 1) {
+                fraudRiskScore = "Medium";
+            }
+            logger.info("[assessCredit] Fraud Detection Completed for userId={}, Risk={}", userId, fraudRiskScore);
 
             // Save occupation back to User profile if not set
+            int age = request.containsKey("age") ? Integer.parseInt(request.get("age").toString()) : 27;
+            String city = request.containsKey("city") ? request.get("city").toString() : "Mumbai";
+            String phoneNumber = request.containsKey("phoneNumber") ? request.get("phoneNumber").toString() : "+91-9876543210";
+
             userRepository.findById(userId).ifPresent(user -> {
                 if (!StringUtils.hasText(user.getOccupation())) {
                     user.setOccupation(occupation);
-                    userRepository.save(user);
                 }
+                user.setMonthlyIncome(income);
+                user.setEmploymentType(employmentType);
+                user.setAge(age);
+                user.setCity(city);
+                user.setPhoneNumber(phoneNumber);
+                userRepository.save(user);
             });
 
-            // 2. Bill Payment Consistency calculation (Self-reported only)
+            // 3. Bill Payment Consistency calculation (Self-reported only)
             double billConsistencyPct = 100.0;
             if ("CONSISTENT".equalsIgnoreCase(selfReportedConsistency)) {
                 billConsistencyPct = 100.0;
@@ -84,7 +143,8 @@ public class CreditController {
                 billConsistencyPct = 40.0;
             }
 
-            // 3. Scoring Points Calculations (Deterministic Weighted Engine)
+            // 4. Scoring Points Calculations (Deterministic Weighted Engine)
+            logger.info("[assessCredit] Credit Score Calculation Started for userId={}", userId);
             
             // A. Savings Ratio (30%)
             double savingsRatio = savings / (income > 0 ? income : 1.0);
@@ -151,7 +211,7 @@ public class CreditController {
             breakdownArray.add(createBreakdownNode("Expense Management (15%)", expensePoints, "Expense ratio is " + Math.round(expenseRatio * 100) + "% of income"));
             breakdownArray.add(createBreakdownNode("Digital Transactions (10%)", txnPoints, "Digital footprint verified at " + transactions + " txns/month"));
 
-            // 4. Loan Eligibility Underwriting (Backend Only)
+            // 5. Loan Eligibility Underwriting (Backend Only)
             boolean loanEligible = score >= 550;
             double suggestedAmount = 0.0;
             String riskCategory = "High";
@@ -166,8 +226,9 @@ public class CreditController {
                 suggestedAmount = savings * 4.0;
                 riskCategory = "High";
             }
+            logger.info("[assessCredit] Loan Eligibility Generated for userId={}: eligible={}, suggestedAmount={}, riskCategory={}", userId, loanEligible, suggestedAmount, riskCategory);
 
-            // 5. Database Persistence Loops
+            // 6. Database Persistence Loops
             // Upsert FinancialData
             FinancialData fd = financialDataRepository.findByUserIdAndMonthAndYear(userId, month, year).orElse(new FinancialData());
             fd.setUserId(userId);
@@ -188,6 +249,7 @@ public class CreditController {
             cs.setYear(year);
             cs.setScore(score);
             cs.setRiskLevel(riskLevel);
+            cs.setFraudRisk(fraudRiskScore);
             cs.setScoreBreakdown(objectMapper.writeValueAsString(breakdownArray));
             creditScoreRepository.save(cs);
 
@@ -200,24 +262,29 @@ public class CreditController {
             la.setLoanAmount(suggestedAmount);
             la.setRiskCategory(riskCategory);
             loanAssessmentRepository.save(la);
+            logger.info("[assessCredit] Database Saved Successfully for userId={}", userId);
 
-            // 6. Invoke Gemini AI (Insights Only, PII Strip Enforced)
+            // 7. Invoke Gemini AI (Insights Only, PII Strip Enforced)
+            logger.info("[assessCredit] Gemini Request for userId={}", userId);
             AiRecommendation rec = geminiService.generateFinancialInsights(
                     userId, score, income, savings, expenses, billConsistencyPct, transactions, loanEligible, suggestedAmount, month, year
             );
+            logger.info("[assessCredit] Gemini Response Received for userId={}", userId);
 
-            // 7. Audit Logging
+            // 8. Audit Logging
             auditLogService.logAction(userId, "CREDIT_SCORE_GENERATION", "SUCCESS");
             auditLogService.logAction(userId, "LOAN_ELIGIBILITY_CHECK", "SUCCESS");
             auditLogService.logAction(userId, "RECOMMENDATION_GENERATION", "SUCCESS");
 
-            // 8. Return Consolidated backward-compatible dashboard response
+            // 9. Return Consolidated backward-compatible dashboard response
             Map<String, Object> dashboardRes = buildConsolidatedResponse(fd, cs, la, rec);
+            logger.info("[assessCredit] Response Returned for userId={}", userId);
             return ResponseEntity.ok(dashboardRes);
 
         } catch (Exception e) {
+            logger.error("[assessCredit] Exception occurred during credit assessment", e);
             auditLogService.logAction(userId, "CREDIT_ASSESS_FAILED", "EXCEPTION");
-            return ResponseEntity.badRequest().body(Map.of("error", "Invalid assessment payload fields or parsing error."));
+            return ResponseEntity.status(500).body(Map.of("error", "Unexpected Internal Server Error: " + e.getMessage()));
         }
     }
 

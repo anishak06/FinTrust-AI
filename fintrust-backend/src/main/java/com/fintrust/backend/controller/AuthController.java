@@ -50,6 +50,17 @@ public class AuthController {
         String email = signUpRequest.get("email");
         String occupation = signUpRequest.get("occupation");
 
+        // Strong password policy validation
+        if (password == null || password.length() < 8 ||
+            !password.matches(".*[A-Z].*") ||
+            !password.matches(".*[a-z].*") ||
+            !password.matches(".*[0-9].*") ||
+            !password.matches(".*[!@#$%^&*()_+\\-=\\[\\]{};\':\",./<>?].*")) {
+            Map<String, String> response = new HashMap<>();
+            response.put("error", "Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character (e.g. FinTrust@2026).");
+            return ResponseEntity.badRequest().body(response);
+        }
+
         if (userRepository.existsByUsername(username)) {
             Map<String, String> response = new HashMap<>();
             response.put("error", "Username is already taken!");
@@ -108,6 +119,9 @@ public class AuthController {
                     new UsernamePasswordAuthenticationToken(username, password)
             );
         } catch (AuthenticationException e) {
+            userRepository.findByUsername(username).ifPresent(user -> {
+                auditLogService.logAction(user.getId(), "USER_LOGIN_FAILED", "FAIL");
+            });
             Map<String, String> err = new HashMap<>();
             err.put("error", "Invalid username or password");
             return ResponseEntity.status(401).body(err);
@@ -170,6 +184,9 @@ public class AuthController {
                     new UsernamePasswordAuthenticationToken(username, password)
             );
         } catch (AuthenticationException e) {
+            userRepository.findByUsername(username).ifPresent(user -> {
+                auditLogService.logAction(user.getId(), "USER_LOGIN_FAILED", "FAIL");
+            });
             Map<String, String> err = new HashMap<>();
             err.put("error", "Invalid username or password");
             return ResponseEntity.status(401).body(err);

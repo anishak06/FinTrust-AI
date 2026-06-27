@@ -51,6 +51,7 @@ public class UserController {
 
         Map<String, Object> response = new HashMap<>();
         response.put("qrCode", qrCodeBase64);
+        response.put("token", nonce);
         response.put("expiresIn", 300); // 5 minutes in seconds
 
         return ResponseEntity.ok(response);

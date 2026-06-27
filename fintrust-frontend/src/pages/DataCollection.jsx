@@ -15,7 +15,6 @@ export default function DataCollection() {
   const titleCaseMonth = currentMonthName.charAt(0).toUpperCase() + currentMonthName.slice(1).toLowerCase();
   const currentYearNum = currentDate.getFullYear();
 
-  // Inputs
   const [monthlyIncome, setMonthlyIncome] = useState('');
   const [monthlyExpenses, setMonthlyExpenses] = useState('');
   const [monthlySavings, setMonthlySavings] = useState('');
@@ -26,6 +25,9 @@ export default function DataCollection() {
   const [existingLoans, setExistingLoans] = useState('');
   const [month, setMonth] = useState(titleCaseMonth);
   const [year, setYear] = useState(currentYearNum.toString());
+  const [age, setAge] = useState('');
+  const [city, setCity] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
 
   // UI state
   const [validationError, setValidationError] = useState('');
@@ -126,7 +128,10 @@ export default function DataCollection() {
           occupation,
           existingLoans: loans,
           month,
-          year: parseInt(year)
+          year: parseInt(year),
+          age: parseInt(age) || 27,
+          city: city || 'Mumbai',
+          phoneNumber: phoneNumber || '+91-9876543210'
         })
       });
 
@@ -360,10 +365,57 @@ export default function DataCollection() {
                 <FileText className="h-3.5 w-3.5 text-[#59CFFF]" /> Occupation / Job Role
               </label>
               <input
-                type="text"
+                 type="text"
                 value={occupation}
                 onChange={(e) => setOccupation(e.target.value)}
                 placeholder="e.g. Software Engineer, Shopkeeper"
+                className="w-full px-4 py-3 rounded-lg glass-input text-xs"
+                required
+              />
+            </div>
+
+            {/* Age */}
+            <div className="space-y-1.5 text-left">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-white/40 flex items-center gap-1.5">
+                Age
+              </label>
+              <input
+                type="number"
+                value={age}
+                onChange={(e) => setAge(e.target.value)}
+                placeholder="e.g. 27"
+                className="w-full px-4 py-3 rounded-lg glass-input text-xs"
+                required
+                min="18"
+                max="120"
+              />
+            </div>
+
+            {/* City */}
+            <div className="space-y-1.5 text-left">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-white/40 flex items-center gap-1.5">
+                City
+              </label>
+              <input
+                type="text"
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+                placeholder="e.g. New Delhi"
+                className="w-full px-4 py-3 rounded-lg glass-input text-xs"
+                required
+              />
+            </div>
+
+            {/* Phone Number */}
+            <div className="space-y-1.5 text-left">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-white/40 flex items-center gap-1.5">
+                Phone Number
+              </label>
+              <input
+                type="text"
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.target.value)}
+                placeholder="e.g. +91 9876543210"
                 className="w-full px-4 py-3 rounded-lg glass-input text-xs"
                 required
               />

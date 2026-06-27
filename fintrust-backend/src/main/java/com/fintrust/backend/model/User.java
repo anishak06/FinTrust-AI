@@ -24,6 +24,7 @@ public class User {
     private String username; // Serves as username / login credential
 
     @Column(nullable = false)
+    @Convert(converter = com.fintrust.backend.security.AttributeEncryptor.class)
     private String email;
 
     @Column(nullable = false)
@@ -33,6 +34,13 @@ public class User {
 
     @Column(nullable = false)
     private String role; // ROLE_USER, ROLE_ADMIN
+
+    private Integer age;
+    private String employmentType;
+    private Double monthlyIncome;
+    private String city;
+    private String phoneNumber;
+    private String verificationStatus = "PENDING"; // PENDING, VERIFIED, REJECTED
 
     private LocalDateTime createdAt = LocalDateTime.now();
 }

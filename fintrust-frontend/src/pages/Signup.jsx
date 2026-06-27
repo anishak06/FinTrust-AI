@@ -24,6 +24,13 @@ export default function Signup() {
       return;
     }
 
+    // Password strength validation (Minimum 8 chars, 1 uppercase, 1 lowercase, 1 number, 1 special char)
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':",./<>?]).{8,}$/;
+    if (!passwordRegex.test(password)) {
+      setError('Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character (e.g., FinTrust@2026).');
+      return;
+    }
+
     setLoading(true);
     setError('');
     setSuccess('');

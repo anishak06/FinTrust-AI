@@ -49,9 +49,11 @@ public class SecurityConfig {
             )
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/**").permitAll()
+                .requestMatchers("/api/lender/signup", "/api/lender/login", "/api/lender/forgot-password", "/api/lender/reset-password").permitAll()
                 .requestMatchers("/api/credit/verify-profile/**").permitAll()
                 .requestMatchers("/api/user/qr-code").authenticated()
                 .requestMatchers("/api/admin/**").hasAuthority("ROLE_ADMIN")
+                .requestMatchers("/api/lender/**").hasAuthority("ROLE_LENDER")
                 .anyRequest().authenticated()
             );
 
